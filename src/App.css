@@ -1,0 +1,47 @@
+
+/* We'll override the default App.css with our styles */
+#root {
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  touch-action: manipulation;
+  background-color: #1A1F2C;
+}
+
+/* Prevent pull-to-refresh on mobile */
+html, body {
+  overscroll-behavior: none;
+}
+
+/* Override max-width to allow full-width UI */
+#root {
+  max-width: 100%;
+}
+
+/* Make buttons and interactive elements easier to tap */
+button {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Improve tap targets for mobile */
+.tap-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Disable text selection to prevent unwanted UI interactions */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
