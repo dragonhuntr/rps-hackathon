@@ -60,7 +60,7 @@ export const detectGesture = (
 };
 
 export const mapGestureToGameSymbol = (gesture: string | null): string => {
-  if (!gesture) return '✊'; // Default to rock
+  if (!gesture) return null; // Default to rock
   
   switch (gesture) {
     case 'Open_Palm':
@@ -71,7 +71,7 @@ export const mapGestureToGameSymbol = (gesture: string | null): string => {
     case 'Closed_Fist':
       return '✊'; // Rock
     default:
-      return '✊'; // Default to rock
+      return null;
   }
 };
 

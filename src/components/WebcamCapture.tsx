@@ -114,45 +114,53 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
     getWebcam();
   }, []);
   
-  // Handle countdown and gesture detection
-  useEffect(() => {
-    if (isCountingDown && countdown === null) {
-      setCountdown(3);
-      
-      const interval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev === 1) {
-            clearInterval(interval);
-            
-            // Capture and recognize gesture when countdown completes
-            setTimeout(() => {
-              if (videoRef.current && gestureRecognizerRef.current) {
-                const result = detectGesture(videoRef.current, gestureRecognizerRef.current);
-                
-                if (result.handPresent && result.detectedGesture) {
-                  // Log detailed information in development
-                  if (debugMode) {
-                    console.log(`Detected gesture: ${result.detectedGesture} (confidence: ${result.confidenceScore}%)`);
-                  }
-                  
-                  const gameGesture = mapGestureToGameSymbol(result.detectedGesture);
-                  onGestureDetected(gameGesture);
-                } else {
-                  // Fallback if no gesture detected
-                  onGestureDetected('✊');
-                }
-              }
-            }, 500);
-            
-            return null;
-          }
-          return prev ? prev - 1 : null;
-        });
-      }, 1000);
-      
-      return () => clearInterval(interval);
+  // Handles the final gesture capture after countdown
+  const captureAndProcessGesture = () => {
+    if (!videoRef.current || !gestureRecognizerRef.current) return;
+    
+    const result = detectGesture(videoRef.current, gestureRecognizerRef.current);
+    
+    if (result.handPresent && result.detectedGesture) {
+      if (debugMode) {
+        console.log(`Detected gesture: ${result.detectedGesture} (confidence: ${result.confidenceScore}%)`);
+      }
+      const gameGesture = mapGestureToGameSymbol(result.detectedGesture);
+      onGestureDetected(gameGesture);
+    } else {
+      onGestureDetected('✊');
     }
-  }, [isCountingDown, onGestureDetected, countdown, debugMode]);
+  };
+
+  // Handles a single countdown tick
+  const handleCountdownTick = (
+    currentCount: number | null,
+    interval: NodeJS.Timeout
+  ): number | null => {
+    if (currentCount === 1) {
+      clearInterval(interval);
+      setTimeout(captureAndProcessGesture, 500);
+      return null;
+    }
+    return currentCount ? currentCount - 1 : null;
+  };
+
+  // Main countdown effect
+  useEffect(() => {
+    const shouldStartCountdown = 
+      isCountingDown && 
+      countdown === null && 
+      confidenceScore && 
+      confidenceScore > 80;
+
+    if (!shouldStartCountdown) return;
+
+    setCountdown(3);
+    const interval = setInterval(() => {
+      setCountdown(prev => handleCountdownTick(prev, interval));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isCountingDown, countdown, confidenceScore]);
   
   return (
     <div className="relative w-full h-full overflow-hidden vignette">
@@ -187,15 +195,13 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
               </div>
             </div>
           </div>
-          <div className="text-xs text-gray-400">
-            MediaPipe Hand Tracking Active
+          <div className="flex flex-col gap-1 text-xs text-gray-400">
+            <div>MediaPipe Hand Tracking Active</div>
+            <div className={isHandDetected ? "text-green-400" : "text-red-400"}>
+              Hand Detection: {isHandDetected ? "Active" : "Not Detected"}
+            </div>
           </div>
         </div>
-      )}
-      
-      {/* Hand detection indicator */}
-      {isHandDetected && !isCountingDown && !showGestureResult && !debugMode && (
-        <div className="absolute inset-0 border-2 border-green-500/30 pointer-events-none" />
       )}
       
       {/* Countdown overlay */}
