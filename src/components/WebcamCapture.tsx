@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { GestureRecognizer } from '@mediapipe/tasks-vision';
-import { initGestureRecognizer, detectGesture, drawHandLandmarks, mapGestureToGameSymbol } from '../lib/gesture';
+import { initGestureRecognizer, detectGesture, drawHandLandmarks, mapGestureToGameSymbol, VALID_GAME_GESTURES } from '../lib/gesture';
 import CountdownOverlay from './CountdownOverlay';
 
 interface WebcamCaptureProps {
@@ -132,13 +132,12 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           setDetectedGestureName(result.detectedGesture || null);
           setConfidenceScore(result.confidenceScore || 0); // Default to 0 if null
 
-          // --- USE THE REF HERE ---
           allCriteriaMet.current =
-            (result.confidenceScore || 0) > 80 && // Ensure score is not null/undefined
+            (result.confidenceScore || 0) > 80 &&
             result.handPresent &&
             result.detectedGesture !== null &&
-            roundActiveRef.current; // Access the ref's current value
-          // --- END USE THE REF ---
+            VALID_GAME_GESTURES.includes(result.detectedGesture || '') &&
+            roundActiveRef.current;
 
 
           if (allCriteriaMet.current && !isCounting) {
@@ -312,12 +311,8 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       cleanupWebcam?.();
     };
 
-  }, [isGestureRecognizerReady, onGestureDetected, debugMode]); // Add dependencies whose changes *should* restart the loop or are used within it.
-                                                                 // onGestureDetected is needed if it changes. debugMode might affect drawing logic.
-                                                                 // State setters are stable, no need to list them.
-                                                                 // Refs (.current) don't need to be listed.
+  }, [isGestureRecognizerReady, onGestureDetected, debugMode]);
 
-  // Rest of the component rendering...
   return (
     <div className="relative w-full h-full overflow-hidden vignette">
       <video
@@ -344,7 +339,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           <div className="flex flex-col gap-1 text-xs text-gray-400">
             {/* ... */}
              <div className="mt-2 border-t border-gray-600 pt-2">
-              <div className="font-bold mb-1">Countdown Conditions (Inside Loop):</div>
+              <div className="font-bold mb-1">Countdown Conditions:</div>
               <div className={isCounting ? "text-green-400" : "text-red-400"}>
                 ⚡ Is Counting: {isCounting ? "Yes" : "No"} ({countdown})
               </div>
@@ -365,7 +360,10 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
               <div className={detectedGestureName ? "text-green-400" : "text-red-400"}>
                 ⚡ Gesture Detected: {detectedGestureName ? "Yes" : "No"} ({detectedGestureName})
               </div>
-               <div className={allCriteriaMet.current ? "text-green-400" : "text-red-400"}>
+              <div className={detectedGestureName && VALID_GAME_GESTURES.includes(detectedGestureName) ? "text-green-400" : "text-red-400"}>
+                ⚡ Valid Game Gesture: {detectedGestureName && VALID_GAME_GESTURES.includes(detectedGestureName) ? "Yes" : "No"}
+              </div>
+              <div className={allCriteriaMet.current ? "text-green-400" : "text-red-400"}>
                 ⚡ All Criteria Met (ref): {allCriteriaMet.current ? "Yes" : "No"}
               </div>
             </div>

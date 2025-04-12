@@ -11,6 +11,8 @@ export interface GestureResult {
   score: number;
 }
 
+export const VALID_GAME_GESTURES = ['Open_Palm', 'Victory', 'Closed_Fist'];
+
 export const initGestureRecognizer = async (): Promise<GestureRecognizer> => {
   const vision = await FilesetResolver.forVisionTasks(
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
@@ -60,13 +62,12 @@ export const detectGesture = (
 };
 
 export const mapGestureToGameSymbol = (gesture: string | null): string => {
-  if (!gesture) return null; // Default to rock
+  if (!gesture || !VALID_GAME_GESTURES.includes(gesture)) return null; // Check if valid game gesture
   
   switch (gesture) {
     case 'Open_Palm':
       return '✋'; // Paper
     case 'Victory':
-    case 'ILoveYou':
       return '✌️'; // Scissors
     case 'Closed_Fist':
       return '✊'; // Rock
