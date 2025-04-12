@@ -229,7 +229,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
                   const score = results.gestures[0][0].score;
                   
                   // Log detailed information in development
-                  if (import.meta.env.VITE_ENV === 'development') {
+                  if (debugMode) {
                     console.log(`Detected gesture: ${gesture} (confidence: ${score.toFixed(2)})`);
                   }
                   
@@ -293,7 +293,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       />
       
       {/* Debug visualization panel */}
-      {debugMode && isHandDetected && detectedGestureName && (
+      {debugMode && (
         <div className="absolute top-4 left-4 bg-black/80 rounded-md p-3 text-white font-mono text-sm border border-green-500/50">
           <div className="flex items-center gap-2 mb-2">
             <div className="text-3xl">{getGameGestureEmoji(detectedGestureName)}</div>
