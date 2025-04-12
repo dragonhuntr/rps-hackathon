@@ -122,6 +122,29 @@ const Index = () => {
     }
   }, [toast, state.items, useItem]);
   
+  // Callback for when the one gesture is detected
+  const handleOneGestureDetected = useCallback(() => {
+    // Find if player has a cola item
+    const colaItem = state.items.find(item => item.type === 'cola');
+    
+    if (colaItem) {
+      // Use the item (this will remove it from inventory)
+      useItem(colaItem.id);
+      
+      toast({
+        title: "One Gesture Detected!",
+        description: "Cola activated - health restored by 1 point.",
+      });
+    } else {
+      // No cola item available
+      toast({
+        title: "One Gesture Detected",
+        description: "You need a cola item to use this gesture.",
+        variant: "destructive"
+      });
+    }
+  }, [toast, state.items, useItem]);
+  
   const handleRestart = () => {
     resetGame();
     setShowRoundResult(false);
@@ -199,6 +222,7 @@ const Index = () => {
               peekedGesture={peekedGesture}
               onGestureDetected={handleGestureDetected}
               onThreeGestureDetected={handleThreeGestureDetected}
+              onOneGestureDetected={handleOneGestureDetected}
             />
           )}
           

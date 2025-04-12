@@ -4,9 +4,22 @@ interface CountdownOverlayProps {
   countdown: number;
   isCounting: boolean;
   show?: boolean;
-  color?: 'red' | 'blue';
+  color?: 'red' | 'blue' | 'green';
   direction?: 'bottom-to-top' | 'top-to-bottom';
 }
+
+const getBackgroundColor = (color: string): string => {
+  switch (color) {
+    case 'red':
+      return 'bg-red-500/90';
+    case 'blue':
+      return 'bg-blue-500/90';
+    case 'green':
+      return 'bg-green-500/90';
+    default:
+      return 'bg-red-500/90';
+  }
+};
 
 const CountdownOverlay: React.FC<CountdownOverlayProps> = ({ 
   countdown, 
@@ -49,7 +62,7 @@ const CountdownOverlay: React.FC<CountdownOverlayProps> = ({
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[9999] overflow-hidden" style={{ pointerEvents: 'none' }}>
       <div 
-        className={`absolute inset-0 bg-${color}-500/90 ${direction === 'bottom-to-top' ? 'origin-bottom' : 'origin-top'} transition-transform duration-75`}
+        className={`absolute inset-0 ${getBackgroundColor(color)} ${direction === 'bottom-to-top' ? 'origin-bottom' : 'origin-top'} transition-transform duration-75`}
         style={{ 
           transform: `scaleY(${progress})`,
         }}

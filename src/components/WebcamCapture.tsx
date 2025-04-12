@@ -11,6 +11,7 @@ interface WebcamCaptureProps {
   peekedGesture: string | null;
   onGestureDetected: (gesture: string) => void;
   onThreeGestureDetected?: () => void; // New callback for "three" gesture
+  onOneGestureDetected?: () => void; // New callback for "one" gesture
 }
 
 const WebcamCapture: React.FC<WebcamCaptureProps> = ({
@@ -20,7 +21,8 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   roundActive, // Keep receiving the prop
   peekedGesture,
   onGestureDetected,
-  onThreeGestureDetected
+  onThreeGestureDetected,
+  onOneGestureDetected
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -34,10 +36,19 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   const countdownIntervalRef = useRef<number | null>(null);
   const [isGestureRecognizerReady, setIsGestureRecognizerReady] = useState(false);
   const allCriteriaMet = useRef<boolean>(false);
-  // New state for handling the three gesture special countdown
+  // Three gesture state
   const [isThreeGestureCounting, setIsThreeGestureCounting] = useState(false);
   const [threeGestureCountdown, setThreeGestureCountdown] = useState(3);
   const threeGestureIntervalRef = useRef<number | null>(null);
+  // One gesture state
+  const [isOneGestureCounting, setIsOneGestureCounting] = useState(false);
+  const [oneGestureCountdown, setOneGestureCountdown] = useState(3);
+  const oneGestureIntervalRef = useRef<number | null>(null);
+  // Cooldown states
+  const [isThreeGestureOnCooldown, setIsThreeGestureOnCooldown] = useState(false);
+  const [isOneGestureOnCooldown, setIsOneGestureOnCooldown] = useState(false);
+  const threeGestureCooldownRef = useRef<number | null>(null);
+  const oneGestureCooldownRef = useRef<number | null>(null);
 
   const roundActiveRef = useRef(roundActive);
 
@@ -72,6 +83,80 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
     };
   }, []); // Keep dependencies minimal for init/cleanup
 
+  // Ensure proper cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear any active intervals to avoid memory leaks
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      
+      if (threeGestureIntervalRef.current) {
+        clearInterval(threeGestureIntervalRef.current);
+        threeGestureIntervalRef.current = null;
+      }
+      
+      if (oneGestureIntervalRef.current) {
+        clearInterval(oneGestureIntervalRef.current);
+        oneGestureIntervalRef.current = null;
+      }
+      
+      // Clear cooldown timeouts
+      if (threeGestureCooldownRef.current) {
+        clearTimeout(threeGestureCooldownRef.current);
+        threeGestureCooldownRef.current = null;
+      }
+      
+      if (oneGestureCooldownRef.current) {
+        clearTimeout(oneGestureCooldownRef.current);
+        oneGestureCooldownRef.current = null;
+      }
+      
+      // Reset states
+      setIsCounting(false);
+      setIsThreeGestureCounting(false);
+      setIsOneGestureCounting(false);
+      setIsThreeGestureOnCooldown(false);
+      setIsOneGestureOnCooldown(false);
+      setCountdown(3);
+      setThreeGestureCountdown(3);
+      setOneGestureCountdown(3);
+    };
+  }, []);
+
+  // Function to reset all countdown states - can be called from anywhere in component
+  const resetCountdowns = () => {
+    // Just cancel any existing countdown
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+      setIsCounting(false);
+      setCountdown(3);
+    }
+    
+    // Cancel any three gesture countdown if active
+    if (threeGestureIntervalRef.current) {
+      clearInterval(threeGestureIntervalRef.current);
+      threeGestureIntervalRef.current = null;
+      setIsThreeGestureCounting(false);
+      setThreeGestureCountdown(3);
+    }
+    
+    // Cancel any one gesture countdown if active
+    if (oneGestureIntervalRef.current) {
+      clearInterval(oneGestureIntervalRef.current);
+      oneGestureIntervalRef.current = null;
+      setIsOneGestureCounting(false);
+      setOneGestureCountdown(3);
+    }
+    
+    // Clear gesture data
+    setDetectedGestureName(null);
+    setConfidenceScore(null);
+    allCriteriaMet.current = false;
+  };
+
   // Initialize canvas size after video is loaded
   useEffect(() => {
     if (videoRef.current && canvasRef.current) {
@@ -98,33 +183,6 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       };
     }
   }, [isGestureRecognizerReady]); // Re-run if recognizer/video might change, or just keep empty [] if video element stable
-
-  // Process video frames with MediaPipe
-  // Define processVideoFrame *outside* the webcam setup effect,
-  // but use useCallback to memoize it if needed (though often not necessary with requestAnimationFrame loops)
-  // For simplicity here, we'll keep it inside, but be mindful of dependencies if extracting.
-
-  // Ensure proper cleanup when component unmounts
-  useEffect(() => {
-    return () => {
-      // Clear any active intervals to avoid memory leaks
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-      
-      if (threeGestureIntervalRef.current) {
-        clearInterval(threeGestureIntervalRef.current);
-        threeGestureIntervalRef.current = null;
-      }
-      
-      // Reset states
-      setIsCounting(false);
-      setIsThreeGestureCounting(false);
-      setCountdown(3);
-      setThreeGestureCountdown(3);
-    };
-  }, []);
 
   // Start webcam and frame processing
   useEffect(() => {
@@ -168,12 +226,16 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           setConfidenceScore(result.confidenceScore || 0);
           
           // Check for three gesture to activate special countdown
-          if (result.detectedGesture === 'three' && 
+          if (result.detectedGesture?.toLowerCase() === 'three' && 
               (result.confidenceScore || 0) > 80 && 
               !isThreeGestureCounting && 
               !threeGestureIntervalRef.current && 
-              !isCounting && 
+              !isCounting &&
+              !isOneGestureCounting && 
+              !isThreeGestureOnCooldown &&
               roundActiveRef.current) {
+            
+            console.log('Three gesture detected:', result.detectedGesture);
             
             setIsThreeGestureCounting(true);
             setThreeGestureCountdown(3);
@@ -193,6 +255,16 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
                   setIsThreeGestureCounting(false);
                   setThreeGestureCountdown(3);
                   
+                  // Set the cooldown
+                  setIsThreeGestureOnCooldown(true);
+                  if (threeGestureCooldownRef.current) {
+                    clearTimeout(threeGestureCooldownRef.current);
+                  }
+                  threeGestureCooldownRef.current = window.setTimeout(() => {
+                    setIsThreeGestureOnCooldown(false);
+                    threeGestureCooldownRef.current = null;
+                  }, 2000); // 2 second cooldown
+                  
                   // Invoke the callback for three gesture detection
                   if (onThreeGestureDetected) {
                     onThreeGestureDetected();
@@ -204,15 +276,72 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
                 return newCount;
               });
             }, 1000);
+          } 
+          // Check for one gesture to activate cola special countdown
+          else if (result.detectedGesture?.toLowerCase() === 'one' && 
+              (result.confidenceScore || 0) > 80 && 
+              !isOneGestureCounting && 
+              !oneGestureIntervalRef.current && 
+              !isCounting &&
+              !isThreeGestureCounting && 
+              !isOneGestureOnCooldown &&
+              roundActiveRef.current) {
+            
+            setIsOneGestureCounting(true);
+            setOneGestureCountdown(3);
+            
+            oneGestureIntervalRef.current = window.setInterval(() => {
+              setOneGestureCountdown(prev => {
+                const newCount = prev - 1;
+                
+                if (newCount <= 0) {
+                  // Clear the interval
+                  if (oneGestureIntervalRef.current) {
+                    clearInterval(oneGestureIntervalRef.current);
+                    oneGestureIntervalRef.current = null;
+                  }
+                  
+                  // Important: Reset state properly to ensure gesture detection can continue
+                  setIsOneGestureCounting(false);
+                  setOneGestureCountdown(3);
+                  
+                  // Set the cooldown
+                  setIsOneGestureOnCooldown(true);
+                  if (oneGestureCooldownRef.current) {
+                    clearTimeout(oneGestureCooldownRef.current);
+                  }
+                  oneGestureCooldownRef.current = window.setTimeout(() => {
+                    setIsOneGestureOnCooldown(false);
+                    oneGestureCooldownRef.current = null;
+                  }, 2000); // 2 second cooldown
+                  
+                  // Invoke the callback for one gesture detection
+                  if (onOneGestureDetected) {
+                    onOneGestureDetected();
+                  }
+                  
+                  return 0;
+                }
+                
+                return newCount;
+              });
+            }, 1000);
           }
           // Cancel three gesture countdown if criteria not met
-          else if (result.detectedGesture !== 'three' && threeGestureIntervalRef.current) {
+          else if (result.detectedGesture?.toLowerCase() !== 'three' && threeGestureIntervalRef.current) {
             clearInterval(threeGestureIntervalRef.current);
             threeGestureIntervalRef.current = null;
             setIsThreeGestureCounting(false);
             setThreeGestureCountdown(3);
           }
-
+          // Cancel one gesture countdown if criteria not met
+          else if (result.detectedGesture?.toLowerCase() !== 'one' && oneGestureIntervalRef.current) {
+            clearInterval(oneGestureIntervalRef.current);
+            oneGestureIntervalRef.current = null;
+            setIsOneGestureCounting(false);
+            setOneGestureCountdown(3);
+          }
+          
           // Simple criteria check for normal gameplay
           allCriteriaMet.current = 
             (result.confidenceScore || 0) > 80 && 
@@ -221,7 +350,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
             roundActiveRef.current;
           
           // Start countdown if criteria met and not already counting
-          if (allCriteriaMet.current && !isCounting && !countdownIntervalRef.current && !isThreeGestureCounting) {
+          if (allCriteriaMet.current && !isCounting && !countdownIntervalRef.current && !isThreeGestureCounting && !isOneGestureCounting) {
             setIsCounting(true);
             setCountdown(3);
             
@@ -279,6 +408,27 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           setIsThreeGestureCounting(false);
           setThreeGestureCountdown(3);
         }
+        
+        // Clear one gesture countdown on error
+        if (oneGestureIntervalRef.current) {
+          clearInterval(oneGestureIntervalRef.current);
+          oneGestureIntervalRef.current = null;
+          setIsOneGestureCounting(false);
+          setOneGestureCountdown(3);
+        }
+        
+        // Clear cooldown timers on error
+        if (threeGestureCooldownRef.current) {
+          clearTimeout(threeGestureCooldownRef.current);
+          threeGestureCooldownRef.current = null;
+          setIsThreeGestureOnCooldown(false);
+        }
+        
+        if (oneGestureCooldownRef.current) {
+          clearTimeout(oneGestureCooldownRef.current);
+          oneGestureCooldownRef.current = null;
+          setIsOneGestureOnCooldown(false);
+        }
       }
       
       // Continue processing
@@ -326,6 +476,23 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
             threeGestureIntervalRef.current = null;
           }
           
+          // Clear one gesture countdown
+          if (oneGestureIntervalRef.current) {
+            clearInterval(oneGestureIntervalRef.current);
+            oneGestureIntervalRef.current = null;
+          }
+          
+          // Clear cooldown timers
+          if (threeGestureCooldownRef.current) {
+            clearTimeout(threeGestureCooldownRef.current);
+            threeGestureCooldownRef.current = null;
+          }
+          
+          if (oneGestureCooldownRef.current) {
+            clearTimeout(oneGestureCooldownRef.current);
+            oneGestureCooldownRef.current = null;
+          }
+          
           if (animationRef.current) {
             cancelAnimationFrame(animationRef.current);
             animationRef.current = null;
@@ -339,6 +506,8 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           
           // Reset all state
           resetCountdowns();
+          setIsThreeGestureOnCooldown(false);
+          setIsOneGestureOnCooldown(false);
         };
       } catch (err) {
         console.error('Error accessing webcam:', err);
@@ -357,31 +526,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       cleanupWebcam?.();
     };
 
-  }, [isGestureRecognizerReady, onGestureDetected, onThreeGestureDetected, debugMode]);
-
-  // Function to reset all countdown states - can be called from anywhere in component
-  const resetCountdowns = () => {
-    // Just cancel any existing countdown
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-      setIsCounting(false);
-      setCountdown(3);
-    }
-    
-    // Cancel any three gesture countdown if active
-    if (threeGestureIntervalRef.current) {
-      clearInterval(threeGestureIntervalRef.current);
-      threeGestureIntervalRef.current = null;
-      setIsThreeGestureCounting(false);
-      setThreeGestureCountdown(3);
-    }
-    
-    // Clear gesture data
-    setDetectedGestureName(null);
-    setConfidenceScore(null);
-    allCriteriaMet.current = false;
-  };
+  }, [isGestureRecognizerReady, onGestureDetected, onThreeGestureDetected, onOneGestureDetected, debugMode]);
 
   return (
     <div className="relative w-full h-full overflow-hidden vignette">
@@ -411,6 +556,15 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
               </div>
               <div className={isThreeGestureCounting ? "text-blue-400" : "text-red-400"}>
                 ⚡ Three Gesture: {isThreeGestureCounting ? "Yes" : "No"} ({threeGestureCountdown})
+              </div>
+              <div className={isThreeGestureOnCooldown ? "text-yellow-400" : "text-gray-400"}>
+                ⚡ Three Cooldown: {isThreeGestureOnCooldown ? "Yes" : "No"}
+              </div>
+              <div className={isOneGestureCounting ? "text-green-400" : "text-red-400"}>
+                ⚡ One Gesture: {isOneGestureCounting ? "Yes" : "No"} ({oneGestureCountdown})
+              </div>
+              <div className={isOneGestureOnCooldown ? "text-yellow-400" : "text-gray-400"}>
+                ⚡ One Cooldown: {isOneGestureOnCooldown ? "Yes" : "No"}
               </div>
               <div className={roundActiveRef.current ? "text-green-400" : "text-red-400"}>
                 ⚡ Round Active (ref): {roundActiveRef.current ? "Yes" : "No"}
@@ -456,6 +610,15 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
         direction="top-to-bottom" // Fill from top to bottom for the three gesture
       />
 
+      {/* One gesture countdown overlay */}
+      <CountdownOverlay
+        countdown={oneGestureCountdown}
+        isCounting={isOneGestureCounting}
+        show={isOneGestureCounting}
+        color="green" // Green color for one gesture
+        direction="top-to-bottom" // Fill from top to bottom for the one gesture
+      />
+
       {/* Result overlay */}
       {showGestureResult && resultGesture && (
         <div className="absolute inset-0 bg-horror-dark/80 flex flex-col items-center justify-center z-20">
@@ -479,7 +642,8 @@ export default memo(WebcamCapture, (prevProps, nextProps) => {
     prevProps.onGestureDetected !== nextProps.onGestureDetected ||
     prevProps.roundActive !== nextProps.roundActive ||
     prevProps.peekedGesture !== nextProps.peekedGesture ||
-    prevProps.onThreeGestureDetected !== nextProps.onThreeGestureDetected
+    prevProps.onThreeGestureDetected !== nextProps.onThreeGestureDetected ||
+    prevProps.onOneGestureDetected !== nextProps.onOneGestureDetected
   ) {
     return false; // Props are different - should re-render
   }
