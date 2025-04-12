@@ -11,7 +11,6 @@ import { useToast } from "@/components/ui/use-toast";
 
 const Index = () => {
   const [gameStarted, setGameStarted] = useState(true); // true for dev
-  const [isCountingDown, setIsCountingDown] = useState(false);
   const [showGestureResult, setShowGestureResult] = useState(false);
   const [showRoundResult, setShowRoundResult] = useState(false);
   const [isPeeking, setIsPeeking] = useState(false);
@@ -57,11 +56,9 @@ const Index = () => {
   
   const handleStartRound = () => {
     startRound();
-    setIsCountingDown(true);
   };
   
   const handleGestureDetected = (gesture: string) => {
-    setIsCountingDown(false);
     setShowGestureResult(true);
     
     // Set timeout to show gesture result before showing round result
@@ -179,9 +176,7 @@ const Index = () => {
           </div>
         ) : (
           <WebcamCapture
-            onGestureDetected={handleGestureDetected}
-            isCountingDown={isCountingDown}
-            detectedGesture={state.playerGesture}
+            resultGesture={state.playerGesture}
             showGestureResult={showGestureResult}
             debugMode={debugMode}
           />

@@ -3,33 +3,38 @@ import { GestureRecognizer } from '@mediapipe/tasks-vision';
 import { initGestureRecognizer, detectGesture, drawHandLandmarks, mapGestureToGameSymbol } from '../lib/gesture';
 
 interface WebcamCaptureProps {
-  onGestureDetected: (gesture: string) => void;
-  isCountingDown: boolean;
-  detectedGesture: string | null;
   showGestureResult: boolean;
+  resultGesture?: string | null;
   debugMode?: boolean;
 }
 
 const WebcamCapture: React.FC<WebcamCaptureProps> = ({
-  onGestureDetected,
-  isCountingDown,
-  detectedGesture,
   showGestureResult,
-  debugMode = import.meta.env.VITE_ENV === 'development'
+  resultGesture,
+  debugMode = true
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isHandDetected, setIsHandDetected] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState(3);
+  const [isCounting, setIsCounting] = useState(false);
   const gestureRecognizerRef = useRef<GestureRecognizer | null>(null);
   const animationRef = useRef<number | null>(null);
   const [detectedGestureName, setDetectedGestureName] = useState<string | null>(null);
   const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
+  const countdownIntervalRef = useRef<number | null>(null);
+  const [isGestureRecognizerReady, setIsGestureRecognizerReady] = useState(false);
   
   // Initialize MediaPipe GestureRecognizer
   useEffect(() => {
     const init = async () => {
-      gestureRecognizerRef.current = await initGestureRecognizer();
+      try {
+        gestureRecognizerRef.current = await initGestureRecognizer();
+        setIsGestureRecognizerReady(true);
+      } catch (err) {
+        console.error('Failed to initialize GestureRecognizer:', err);
+        setIsGestureRecognizerReady(false);
+      }
     };
     
     init();
@@ -41,7 +46,28 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
+      setIsGestureRecognizerReady(false);
     };
+  }, []);
+  
+  // Initialize canvas size after video is loaded
+  useEffect(() => {
+    if (videoRef.current && canvasRef.current) {
+      const resizeCanvas = () => {
+        if (videoRef.current && canvasRef.current) {
+          canvasRef.current.width = videoRef.current.videoWidth;
+          canvasRef.current.height = videoRef.current.videoHeight;
+        }
+      };
+      
+      videoRef.current.addEventListener('loadedmetadata', resizeCanvas);
+      videoRef.current.addEventListener('resize', resizeCanvas);
+      
+      return () => {
+        videoRef.current?.removeEventListener('loadedmetadata', resizeCanvas);
+        videoRef.current?.removeEventListener('resize', resizeCanvas);
+      };
+    }
   }, []);
   
   // Process video frames with MediaPipe
@@ -50,34 +76,47 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       return;
     }
     
-    const result = detectGesture(videoRef.current, gestureRecognizerRef.current);
-    setIsHandDetected(result.handPresent);
-    
-    if (result.handPresent && result.landmarks) {
-      setDetectedGestureName(result.detectedGesture || null);
-      setConfidenceScore(result.confidenceScore || null);
+    try {
+      const result = detectGesture(videoRef.current, gestureRecognizerRef.current);
+      setIsHandDetected(result.handPresent);
       
-      if (canvasRef.current && debugMode) {
-        const ctx = canvasRef.current.getContext('2d');
-        if (ctx) {
-          drawHandLandmarks(ctx, canvasRef.current, result.landmarks);
+      if (result.handPresent && result.landmarks) {
+        setDetectedGestureName(result.detectedGesture || null);
+        setConfidenceScore(result.confidenceScore || null);
+        
+        if (canvasRef.current && debugMode) {
+          const ctx = canvasRef.current.getContext('2d');
+          if (ctx) {
+            try {
+              drawHandLandmarks(ctx, canvasRef.current, result.landmarks);
+            } catch (err) {
+              console.error('Error drawing hand landmarks:', err);
+              ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            }
+          }
         }
+      } else {
+        if (canvasRef.current && debugMode) {
+          const ctx = canvasRef.current.getContext('2d');
+          if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
+        setDetectedGestureName(null);
+        setConfidenceScore(null);
       }
-    } else {
-      if (canvasRef.current && debugMode) {
-        const ctx = canvasRef.current.getContext('2d');
-        if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      }
-      setDetectedGestureName(null);
-      setConfidenceScore(null);
+    } catch (err) {
+      console.error('Error processing video frame:', err);
     }
     
     // Schedule next frame
     animationRef.current = requestAnimationFrame(processVideoFrame);
   };
   
-  // Start webcam
+  // Start webcam and frame processing
   useEffect(() => {
+    if (!isGestureRecognizerReady) {
+      return;
+    }
+
     const getWebcam = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -88,14 +127,6 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
             videoRef.current?.play();
-            
-            // Initialize canvas size after video is loaded
-            if (canvasRef.current && videoRef.current) {
-              canvasRef.current.width = videoRef.current.videoWidth;
-              canvasRef.current.height = videoRef.current.videoHeight;
-            }
-            
-            // Start processing frames
             animationRef.current = requestAnimationFrame(processVideoFrame);
           };
         }
@@ -107,60 +138,47 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           stream.getTracks().forEach(track => track.stop());
         };
       } catch (err) {
-        console.error("Error accessing webcam", err);
+        console.error('Error accessing webcam:', err);
       }
     };
     
     getWebcam();
-  }, []);
-  
-  // Handles the final gesture capture after countdown
-  const captureAndProcessGesture = () => {
-    if (!videoRef.current || !gestureRecognizerRef.current) return;
-    
-    const result = detectGesture(videoRef.current, gestureRecognizerRef.current);
-    
-    if (result.handPresent && result.detectedGesture) {
-      if (debugMode) {
-        console.log(`Detected gesture: ${result.detectedGesture} (confidence: ${result.confidenceScore}%)`);
-      }
-      const gameGesture = mapGestureToGameSymbol(result.detectedGesture);
-      onGestureDetected(gameGesture);
-    } else {
-      onGestureDetected('✊');
-    }
-  };
+  }, [isGestureRecognizerReady]);
 
-  // Handles a single countdown tick
-  const handleCountdownTick = (
-    currentCount: number | null,
-    interval: NodeJS.Timeout
-  ): number | null => {
-    if (currentCount === 1) {
-      clearInterval(interval);
-      setTimeout(captureAndProcessGesture, 500);
-      return null;
-    }
-    return currentCount ? currentCount - 1 : null;
-  };
-
-  // Main countdown effect
+  // Add countdown logic
   useEffect(() => {
-    const shouldStartCountdown = 
-      isCountingDown && 
-      countdown === null && 
+    const allCriteriaMet = 
       confidenceScore && 
-      confidenceScore > 80;
+      confidenceScore > 80 &&
+      isHandDetected &&
+      detectedGestureName;
 
-    if (!shouldStartCountdown) return;
+    if (allCriteriaMet && !isCounting) {
+      // Start countdown
+      setIsCounting(true);
+      countdownIntervalRef.current = window.setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownIntervalRef.current!);
+            setIsCounting(false);
+            return 3; // Reset to 3
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (!allCriteriaMet && isCounting) {
+      // Reset countdown if criteria not met
+      clearInterval(countdownIntervalRef.current!);
+      setIsCounting(false);
+      setCountdown(3); // Reset to 3
+    }
 
-    setCountdown(3);
-    const interval = setInterval(() => {
-      setCountdown(prev => handleCountdownTick(prev, interval));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isCountingDown, countdown, confidenceScore]);
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
+    };
+  }, [confidenceScore, isHandDetected, detectedGestureName, isCounting]);
   
   return (
     <div className="relative w-full h-full overflow-hidden vignette">
@@ -200,22 +218,37 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
             <div className={isHandDetected ? "text-green-400" : "text-red-400"}>
               Hand Detection: {isHandDetected ? "Active" : "Not Detected"}
             </div>
+            <div className="mt-2 border-t border-gray-600 pt-2">
+              <div className="font-bold mb-1">Countdown Conditions:</div>
+              <div className={isCounting ? "text-green-400" : "text-red-400"}>
+                ⚡ Is Counting: {isCounting ? "Yes" : "No"} ({countdown})
+              </div>
+              <div className={confidenceScore && confidenceScore > 80 ? "text-green-400" : "text-red-400"}>
+                ⚡ Confidence {'>'} 80%: {confidenceScore && confidenceScore > 80 ? "Yes" : "No"}
+              </div>
+              <div className={isHandDetected ? "text-green-400" : "text-red-400"}>
+                ⚡ Hand Detected: {isHandDetected ? "Yes" : "No"}
+              </div>
+              <div className={detectedGestureName ? "text-green-400" : "text-red-400"}>
+                ⚡ Gesture Detected: {detectedGestureName ? "Yes" : "No"}
+              </div>
+            </div>
           </div>
         </div>
       )}
       
       {/* Countdown overlay */}
-      {isCountingDown && countdown !== null && (
+      {isCounting && (
         <div className="absolute inset-0 bg-horror-dark/80 flex items-center justify-center crt-flicker">
           <span className="text-7xl font-bold text-horror-gray animate-pulse">{countdown}</span>
         </div>
       )}
       
       {/* Result overlay */}
-      {showGestureResult && detectedGesture && (
+      {showGestureResult && resultGesture && (
         <div className="absolute inset-0 bg-horror-dark/80 flex flex-col items-center justify-center">
           <div className="text-2xl font-ocr text-horror-gray mb-2 animate-glitch-1">YOU PLAYED:</div>
-          <div className="text-6xl mb-4">{detectedGesture}</div>
+          <div className="text-6xl mb-4">{resultGesture}</div>
           <div className="text-sm font-mono text-horror-gray/70 animate-pulse">GESTURE RECORDED</div>
         </div>
       )}
