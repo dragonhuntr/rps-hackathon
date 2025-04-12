@@ -53,15 +53,12 @@ const Index = () => {
     });
   };
   
-  const handleStartRound = () => {
-    startRound();
-  };
-  
   // Memoize the gesture detection handler to prevent unnecessary re-renders of WebcamCapture
   const handleGestureDetected = useCallback((gesture: string) => {
-    setPlayerGesture(gesture);
+    console.log(peekedGesture);
+    setPlayerGesture(gesture, peekedGesture);
     setShowRoundResult(true);
-  }, [setPlayerGesture]);
+  }, [setPlayerGesture, peekedGesture]);
   
   const handleContinueAfterRound = () => {
     setIsPeeking(false);
@@ -171,6 +168,7 @@ const Index = () => {
               showGestureResult={memoizedShowGestureResult}
               debugMode={memoizedDebugMode}
               roundActive={state.roundActive}
+              peekedGesture={peekedGesture}
               onGestureDetected={handleGestureDetected}
             />
           )}
@@ -178,7 +176,7 @@ const Index = () => {
           {gameStarted && !state.gameOver && !state.roundActive && !showRoundResult && (
             <div className="absolute inset-0 flex items-center justify-center">
               <button
-                onClick={handleStartRound}
+                onClick={() => startRound()}
                 className="px-6 py-3 bg-horror-dark/80 border border-horror-red/40 text-horror-red hover:bg-horror-red/20 transition-colors font-mono"
                 disabled={!mediaLoaded}
               >

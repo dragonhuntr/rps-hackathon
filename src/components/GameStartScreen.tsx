@@ -6,7 +6,6 @@ interface GameStartScreenProps {
 }
 
 const GameStartScreen: React.FC<GameStartScreenProps> = ({ onStart }) => {
-  const [isGlitching, setIsGlitching] = useState(false);
   const [showTitle, setShowTitle] = useState(false);
   const [showButton, setShowButton] = useState(false);
   
@@ -19,19 +18,11 @@ const GameStartScreen: React.FC<GameStartScreenProps> = ({ onStart }) => {
         setShowButton(true);
       }, 1000);
     }, 500);
-    
-    // Add random glitching effect
-    const glitchInterval = setInterval(() => {
-      setIsGlitching(true);
-      setTimeout(() => setIsGlitching(false), 100);
-    }, 2000);
-    
-    return () => clearInterval(glitchInterval);
   }, []);
   
   return (
     <div className="fixed inset-0 z-50 bg-horror flex flex-col items-center justify-center crt-overlay scan-line">
-      <div className={`text-center ${isGlitching ? 'animate-glitch-1' : ''}`}>
+      <div className={`text-center`}>
         {showTitle && (
           <>
             <div className="mb-2 text-xs font-mono text-horror-gray/70">INITIALIZING SYSTEM</div>

@@ -85,8 +85,9 @@ export const useGameState = () => {
     }));
   }, []);
   
-  const setPlayerGesture = useCallback((gesture: string) => {
-    const computerGesture = getRandomGesture();
+  const setPlayerGesture = useCallback((gesture: string, peekedGesture?: string) => {
+    console.log(peekedGesture);
+    const computerGesture = peekedGesture || getRandomGesture();
     const result = determineWinner(gesture, computerGesture);
     
     setState(prev => {

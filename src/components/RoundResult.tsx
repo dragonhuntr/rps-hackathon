@@ -14,23 +14,15 @@ const RoundResult: React.FC<RoundResultProps> = ({
   result,
   onContinue
 }) => {
-  const [showContinue, setShowContinue] = useState(false);
-  const [glitching, setGlitching] = useState(false);
+  const [showContinue, setShowContinue] = useState(false)
   
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowContinue(true);
     }, 2000);
     
-    // Add random glitching effect
-    const glitchInterval = setInterval(() => {
-      setGlitching(true);
-      setTimeout(() => setGlitching(false), 100);
-    }, 1500);
-    
     return () => {
       clearTimeout(timer);
-      clearInterval(glitchInterval);
     };
   }, []);
   
@@ -70,11 +62,11 @@ const RoundResult: React.FC<RoundResultProps> = ({
         
         <div className="text-center">
           <div className="text-sm font-mono opacity-70 mb-2">CPU</div>
-          <div className={`text-6xl ${glitching ? 'animate-glitch-1' : ''}`}>{computerGesture}</div>
+          <div className={`text-6xl`}>{computerGesture}</div>
         </div>
       </div>
       
-      <div className={`text-3xl font-ocr mb-8 ${getResultColor()} ${glitching ? 'animate-glitch-2' : ''}`}>
+      <div className={`text-3xl font-ocr mb-8 ${getResultColor()}`}>
         {getResultText()}
       </div>
       

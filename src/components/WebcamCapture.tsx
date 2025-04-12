@@ -8,6 +8,7 @@ interface WebcamCaptureProps {
   resultGesture?: string | null;
   debugMode?: boolean;
   roundActive: boolean; // The prop itself
+  peekedGesture: string | null;
   onGestureDetected: (gesture: string) => void;
 }
 
@@ -16,6 +17,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   resultGesture,
   debugMode = true,
   roundActive, // Keep receiving the prop
+  peekedGesture,
   onGestureDetected
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -375,7 +377,8 @@ export default memo(WebcamCapture, (prevProps, nextProps) => {
     prevProps.resultGesture !== nextProps.resultGesture ||
     prevProps.debugMode !== nextProps.debugMode ||
     prevProps.onGestureDetected !== nextProps.onGestureDetected ||
-    prevProps.roundActive !== nextProps.roundActive // Allow re-renders when roundActive changes
+    prevProps.roundActive !== nextProps.roundActive ||
+    prevProps.peekedGesture !== nextProps.peekedGesture
   ) {
     return false; // Props are different - should re-render
   }
