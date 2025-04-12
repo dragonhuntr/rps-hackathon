@@ -1,17 +1,22 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { GestureRecognizer } from '@mediapipe/tasks-vision';
 import { initGestureRecognizer, detectGesture, drawHandLandmarks, mapGestureToGameSymbol } from '../lib/gesture';
+import CountdownOverlay from './CountdownOverlay';
 
 interface WebcamCaptureProps {
   showGestureResult: boolean;
   resultGesture?: string | null;
   debugMode?: boolean;
+  roundActive: boolean;
+  onGestureDetected: (gesture: string) => void;
 }
 
 const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   showGestureResult,
   resultGesture,
-  debugMode = true
+  debugMode = true,
+  roundActive,
+  onGestureDetected
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -84,6 +89,34 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
         setDetectedGestureName(result.detectedGesture || null);
         setConfidenceScore(result.confidenceScore || null);
         
+        // Handle countdown logic here
+        const allCriteriaMet =
+          result.confidenceScore > 80 &&
+          result.handPresent &&
+          result.detectedGesture !== null;
+
+        if (allCriteriaMet && !isCounting) {
+          // Only start counting if we're not already counting and there's no active interval
+          if (!countdownIntervalRef.current) {
+            console.log('Starting countdown...');
+            setIsCounting(true);
+            countdownIntervalRef.current = window.setInterval(() => {
+              setCountdown(prev => {
+                const newCount = prev > 0 ? prev - 1 : 0;
+                console.log('Countdown update:', newCount);
+                return newCount;
+              });
+            }, 1000);
+          }
+        } else if (!allCriteriaMet) {
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;  // Reset the ref after clearing
+          }
+          setIsCounting(false);
+          setCountdown(3);
+        }
+        
         if (canvasRef.current && debugMode) {
           const ctx = canvasRef.current.getContext('2d');
           if (ctx) {
@@ -102,6 +135,15 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
         }
         setDetectedGestureName(null);
         setConfidenceScore(null);
+        
+        // Clear countdown when hand is not detected
+        if (isCounting) {
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+          }
+          setIsCounting(false);
+          setCountdown(3);
+        }
       }
     } catch (err) {
       console.error('Error processing video frame:', err);
@@ -145,41 +187,6 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
     getWebcam();
   }, [isGestureRecognizerReady]);
 
-  // Add countdown logic
-  useEffect(() => {
-    const allCriteriaMet = 
-      confidenceScore && 
-      confidenceScore > 80 &&
-      isHandDetected &&
-      detectedGestureName;
-
-    if (allCriteriaMet && !isCounting) {
-      // Start countdown
-      setIsCounting(true);
-      countdownIntervalRef.current = window.setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(countdownIntervalRef.current!);
-            setIsCounting(false);
-            return 3; // Reset to 3
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (!allCriteriaMet && isCounting) {
-      // Reset countdown if criteria not met
-      clearInterval(countdownIntervalRef.current!);
-      setIsCounting(false);
-      setCountdown(3); // Reset to 3
-    }
-
-    return () => {
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-      }
-    };
-  }, [confidenceScore, isHandDetected, detectedGestureName, isCounting]);
-  
   return (
     <div className="relative w-full h-full overflow-hidden vignette">
       <video 
@@ -232,17 +239,19 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
               <div className={detectedGestureName ? "text-green-400" : "text-red-400"}>
                 ⚡ Gesture Detected: {detectedGestureName ? "Yes" : "No"}
               </div>
+              <div className={roundActive ? "text-green-400" : "text-red-400"}>
+                ⚡ Round Active: {roundActive ? "Yes" : "No"}
+              </div>
             </div>
           </div>
         </div>
       )}
       
       {/* Countdown overlay */}
-      {isCounting && (
-        <div className="absolute inset-0 bg-horror-dark/80 flex items-center justify-center crt-flicker">
-          <span className="text-7xl font-bold text-horror-gray animate-pulse">{countdown}</span>
-        </div>
-      )}
+      <CountdownOverlay 
+        countdown={countdown}
+        isCounting={isCounting}
+      />
       
       {/* Result overlay */}
       {showGestureResult && resultGesture && (

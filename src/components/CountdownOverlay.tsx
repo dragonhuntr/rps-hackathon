@@ -1,29 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 
 interface CountdownOverlayProps {
-  count: number;
-  onComplete: () => void;
+  countdown: number;
+  isCounting: boolean;
 }
 
-const CountdownOverlay: React.FC<CountdownOverlayProps> = ({ count, onComplete }) => {
-  const [currentCount, setCurrentCount] = useState(count);
-  
-  useEffect(() => {
-    if (currentCount <= 0) {
-      onComplete();
-      return;
-    }
-    
-    const interval = setInterval(() => {
-      setCurrentCount(prev => prev - 1);
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [currentCount, onComplete]);
+const CountdownOverlay: React.FC<CountdownOverlayProps> = ({ countdown, isCounting }) => {
+  console.log('CountdownOverlay props:', { countdown, isCounting });
+  if (!isCounting) return null;
   
   return (
-    <div className="absolute inset-0 bg-horror-dark/80 flex items-center justify-center pointer-events-none">
-      <span className="text-7xl font-ocr text-horror-gray animate-pulse">{currentCount}</span>
+    <div className="fixed inset-0 bg-red-500/90 flex items-center justify-center z-[9999]" style={{ pointerEvents: 'none' }}>
+      <span className="text-[150px] font-bold text-white">{countdown}</span>
     </div>
   );
 };

@@ -179,6 +179,8 @@ const Index = () => {
             resultGesture={state.playerGesture}
             showGestureResult={showGestureResult}
             debugMode={debugMode}
+            roundActive={state.roundActive}
+            onGestureDetected={handleGestureDetected}
           />
         )}
         
