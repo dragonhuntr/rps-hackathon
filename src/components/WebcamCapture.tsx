@@ -29,6 +29,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
   const countdownIntervalRef = useRef<number | null>(null);
   const [isGestureRecognizerReady, setIsGestureRecognizerReady] = useState(false);
+  const allCriteriaMet = useRef<boolean>(false);
   
   // Initialize MediaPipe GestureRecognizer
   useEffect(() => {
@@ -90,12 +91,13 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
         setConfidenceScore(result.confidenceScore || null);
         
         // Handle countdown logic here
-        const allCriteriaMet =
+        allCriteriaMet.current =
           result.confidenceScore > 80 &&
           result.handPresent &&
-          result.detectedGesture !== null;
+          result.detectedGesture !== null &&
+          roundActive;
 
-        if (allCriteriaMet && !isCounting) {
+        if (allCriteriaMet.current && !isCounting) {
           // Only start counting if we're not already counting and there's no active interval
           if (!countdownIntervalRef.current) {
             console.log('Starting countdown...');
@@ -108,7 +110,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
               });
             }, 1000);
           }
-        } else if (!allCriteriaMet) {
+        } else if (!allCriteriaMet.current) {
           if (countdownIntervalRef.current) {
             clearInterval(countdownIntervalRef.current);
             countdownIntervalRef.current = null;  // Reset the ref after clearing
@@ -251,6 +253,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       <CountdownOverlay 
         countdown={countdown}
         isCounting={isCounting}
+        show={allCriteriaMet.current}
       />
       
       {/* Result overlay */}
