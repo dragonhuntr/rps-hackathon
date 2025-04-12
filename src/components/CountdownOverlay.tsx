@@ -7,7 +7,6 @@ interface CountdownOverlayProps {
 }
 
 const CountdownOverlay: React.FC<CountdownOverlayProps> = ({ countdown, isCounting, show }) => {
-  console.log('CountdownOverlay props:', { countdown, isCounting, show });
   if (!show) return null;
   
   return (

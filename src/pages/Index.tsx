@@ -66,14 +66,8 @@ const Index = () => {
   
   // Memoize the gesture detection handler to prevent unnecessary re-renders of WebcamCapture
   const handleGestureDetected = useCallback((gesture: string) => {
-    setShowGestureResult(true);
-    
-    // Set timeout to show gesture result before showing round result
-    setTimeout(() => {
-      setShowGestureResult(false);
-      setPlayerGesture(gesture);
-      setShowRoundResult(true);
-    }, 1500);
+    setPlayerGesture(gesture);
+    setShowRoundResult(true);
   }, [setPlayerGesture]);
   
   const handleContinueAfterRound = () => {

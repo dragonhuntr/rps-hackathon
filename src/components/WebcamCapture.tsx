@@ -31,19 +31,13 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   const [isGestureRecognizerReady, setIsGestureRecognizerReady] = useState(false);
   const allCriteriaMet = useRef<boolean>(false);
 
-  // --- SOLUTION START ---
-  // Ref to hold the latest value of roundActive
   const roundActiveRef = useRef(roundActive);
 
-  // Effect to update the ref whenever the prop changes
   useEffect(() => {
     roundActiveRef.current = roundActive;
   }, [roundActive]);
-  // --- SOLUTION END ---
 
-  // Initialize MediaPipe GestureRecognizer
   useEffect(() => {
-    // ... (rest of the init code remains the same)
     const init = async () => {
       try {
         gestureRecognizerRef.current = await initGestureRecognizer();
@@ -72,7 +66,6 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
 
   // Initialize canvas size after video is loaded
   useEffect(() => {
-    // ... (canvas resize logic remains the same)
     if (videoRef.current && canvasRef.current) {
       const videoElement = videoRef.current; // Capture current ref value
       const canvasElement = canvasRef.current; // Capture current ref value
@@ -81,13 +74,11 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
         if (videoElement && canvasElement) {
           canvasElement.width = videoElement.videoWidth;
           canvasElement.height = videoElement.videoHeight;
-          // console.log(`Canvas resized: ${canvasElement.width}x${canvasElement.height}`); // Optional log
         }
       };
 
       videoElement.addEventListener('loadedmetadata', resizeCanvas);
       videoElement.addEventListener('resize', resizeCanvas);
-      // Initial resize in case metadata is already loaded
       if (videoElement.videoWidth > 0) {
         resizeCanvas();
       }
