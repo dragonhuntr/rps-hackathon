@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, memo } from 'react';
 import { GestureRecognizer } from '@mediapipe/tasks-vision';
 import { initGestureRecognizer, detectGesture, drawHandLandmarks, mapGestureToGameSymbol, VALID_GAME_GESTURES } from '../lib/gesture';
 import CountdownOverlay from './CountdownOverlay';
@@ -89,7 +89,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       videoElement.addEventListener('resize', resizeCanvas);
       // Initial resize in case metadata is already loaded
       if (videoElement.videoWidth > 0) {
-         resizeCanvas();
+        resizeCanvas();
       }
 
 
@@ -115,128 +115,109 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
 
     // Moved processVideoFrame definition here to ensure it captures necessary refs/state setters correctly
     // It will still close over the initial state/props unless we use refs or pass them explicitly
-    const processVideoFrame = () => {
-      // Add checks for refs being current at the start of the frame processing
+    const processVideoFrame = async () => {
+      // Basic checks
       if (!videoRef.current || !gestureRecognizerRef.current || videoRef.current.paused || videoRef.current.ended) {
-        // console.log("Video not ready or recognizer missing, skipping frame.");
-        // Request next frame even if skipping processing this one, to keep the loop alive
         animationRef.current = requestAnimationFrame(processVideoFrame);
         return;
       }
 
       try {
         const result = detectGesture(videoRef.current, gestureRecognizerRef.current);
-        setIsHandDetected(result.handPresent); // Update state based on detection
-
-        if (result.handPresent && result.landmarks) {
-          setDetectedGestureName(result.detectedGesture || null);
-          setConfidenceScore(result.confidenceScore || 0); // Default to 0 if null
-
-          allCriteriaMet.current =
-            (result.confidenceScore || 0) > 80 &&
-            result.handPresent &&
-            result.detectedGesture !== null &&
-            VALID_GAME_GESTURES.includes(result.detectedGesture || '') &&
-            roundActiveRef.current;
-
-
-          if (allCriteriaMet.current && !isCounting) {
-            // Only start counting if we're not already counting and interval isn't set
-            if (!countdownIntervalRef.current) {
-              console.log(`Starting countdown (roundActive: ${roundActiveRef.current}, confidence: ${result.confidenceScore}, hand: ${result.handPresent}, gesture: ${result.detectedGesture})`);
-              setIsCounting(true);
-              setCountdown(3); // Reset countdown state before starting interval
-
-              countdownIntervalRef.current = window.setInterval(() => {
-                setCountdown(prev => {
-                  const newCount = prev > 0 ? prev - 1 : 0;
-                  console.log('Countdown update:', newCount);
-
-                  if (newCount === 0) {
-                     // Re-detect right before triggering to get the *final* gesture at count 0
-                     const finalResult = detectGesture(videoRef.current!, gestureRecognizerRef.current!); // Non-null assertion assumes video still exists
-                     if (finalResult.detectedGesture) {
-                        console.log(`Countdown finished. Detected gesture: ${finalResult.detectedGesture}`);
-                        const gameSymbol = mapGestureToGameSymbol(finalResult.detectedGesture);
-                        if (gameSymbol) {
-                          onGestureDetected(gameSymbol);
-                        }
-                     } else {
-                         console.log("Countdown finished, but no gesture detected at the end.");
-                     }
-
-                     // Clear interval *after* processing
-                     clearInterval(countdownIntervalRef.current!); // Non-null because we are inside its callback
-                     countdownIntervalRef.current = null;
-                     setIsCounting(false); // Update counting state *after* clearing
-                     // No need to return 0 here, state update handles it.
-                     // Let the normal loop handle resetting countdown display outside the interval.
-                  }
-
-                  return newCount; // Return the new count for the next state update
-                });
-              }, 1000);
-            }
-          } else if (!allCriteriaMet.current) {
-            // If criteria are no longer met AND we were counting, cancel the countdown
-            console.log(`Countdown cancelled (Criteria not met: roundActive: ${roundActiveRef.current}, confidence: ${result.confidenceScore}, hand: ${result.handPresent}, gesture: ${result.detectedGesture})`);
-            if (countdownIntervalRef.current) {
-              clearInterval(countdownIntervalRef.current);
-              countdownIntervalRef.current = null; // Reset the ref
-            }
+        const handDetected = result.handPresent;
+        
+        // Update hand detection state
+        setIsHandDetected(handDetected);
+        
+        // SIMPLE APPROACH: If no hand is detected, stop the countdown immediately
+        if (!handDetected) {
+          // Just cancel any existing countdown
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
             setIsCounting(false);
-            setCountdown(3); // Reset countdown state
+            setCountdown(3);
           }
-
-
+          
+          // Clear gesture data
+          setDetectedGestureName(null);
+          setConfidenceScore(null);
+          allCriteriaMet.current = false;
+          
+          // Clear canvas of any previous hand landmarks
           if (canvasRef.current && debugMode) {
             const ctx = canvasRef.current.getContext('2d');
             if (ctx) {
-              try {
-                 // Clear previous frame before drawing new one
-                 ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-                 drawHandLandmarks(ctx, canvasRef.current, result.landmarks);
-              } catch (err) {
-                console.error('Error drawing hand landmarks:', err);
-                // Clear canvas on error to avoid stale drawings
-                 ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-              }
+              ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
             }
           }
-        } else {
-           // --- Hand Not Detected ---
-           // Clear canvas if in debug mode
-           if (canvasRef.current && debugMode) {
-             const ctx = canvasRef.current.getContext('2d');
-             if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-           }
-           // Reset gesture state
-           setDetectedGestureName(null);
-           setConfidenceScore(null);
-           // Reset criteria flag
-           allCriteriaMet.current = false;
-
-           // Clear countdown if hand is not detected and we were counting
-           if (isCounting) {
-             console.log("Countdown cancelled (Hand lost - outer check)");
-             if (countdownIntervalRef.current) {
-               clearInterval(countdownIntervalRef.current);
-               countdownIntervalRef.current = null;
-             }
-             setIsCounting(false);
-             setCountdown(3);
-           }
+        } 
+        // Hand is detected
+        else if (result.landmarks) {
+          setDetectedGestureName(result.detectedGesture || null);
+          setConfidenceScore(result.confidenceScore || 0);
+          
+          // Simple criteria check
+          allCriteriaMet.current = 
+            (result.confidenceScore || 0) > 70 && 
+            result.detectedGesture !== null && 
+            VALID_GAME_GESTURES.includes(result.detectedGesture || '') && 
+            roundActiveRef.current;
+          
+          // Start countdown if criteria met and not already counting
+          if (allCriteriaMet.current && !isCounting && !countdownIntervalRef.current) {
+            setIsCounting(true);
+            setCountdown(3);
+            
+            countdownIntervalRef.current = window.setInterval(() => {
+              setCountdown(prev => {
+                const newCount = prev - 1;
+                
+                if (newCount <= 0) {
+                  // Get final gesture
+                  const finalResult = detectGesture(videoRef.current!, gestureRecognizerRef.current!);
+                  if (finalResult.detectedGesture) {
+                    const gameSymbol = mapGestureToGameSymbol(finalResult.detectedGesture);
+                    if (gameSymbol) {
+                      onGestureDetected(gameSymbol);
+                    }
+                  }
+                  return 0;
+                }
+                
+                return newCount;
+              });
+            }, 1000);
+          }
+          // Cancel countdown if criteria not met
+          else if (!allCriteriaMet.current && countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+            setIsCounting(false);
+            setCountdown(3);
+          }
+          
+          // Draw hand landmarks
+          if (canvasRef.current && debugMode) {
+            const ctx = canvasRef.current.getContext('2d');
+            if (ctx) {
+              ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+              drawHandLandmarks(ctx, canvasRef.current, result.landmarks);
+            }
+          }
         }
       } catch (err) {
         console.error('Error processing video frame:', err);
-        // Optionally clear canvas or reset state here too
-         if (canvasRef.current && debugMode) {
-             const ctx = canvasRef.current.getContext('2d');
-             if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-           }
+        // Clear countdown on error
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+          setIsCounting(false);
+          setCountdown(3);
+        }
       }
-
-      // Schedule next frame processing
+      
+      // Continue processing
       animationRef.current = requestAnimationFrame(processVideoFrame);
     };
 
@@ -252,58 +233,62 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           videoElement.srcObject = stream;
           // Use a promise-based approach for play()
           videoElement.onloadedmetadata = async () => {
-             console.log("Video metadata loaded");
-             try {
-                await videoElement.play();
-                console.log("Video playing");
-                // Start processing frames *only after* video starts playing
-                if (animationRef.current) cancelAnimationFrame(animationRef.current); // Cancel previous loop if any
-                animationRef.current = requestAnimationFrame(processVideoFrame);
-                console.log("Started animation frame loop");
-             } catch (playError) {
-                console.error("Error playing video:", playError);
-             }
+            console.log("Video metadata loaded");
+            try {
+              await videoElement.play();
+              console.log("Video playing");
+              // Start processing frames *only after* video starts playing
+              if (animationRef.current) cancelAnimationFrame(animationRef.current); // Cancel previous loop if any
+              animationRef.current = requestAnimationFrame(processVideoFrame);
+              console.log("Started animation frame loop");
+            } catch (playError) {
+              console.error("Error playing video:", playError);
+            }
           };
         }
 
         // Return cleanup function
         return () => {
           console.log("Cleaning up webcam useEffect...");
+          
+          // CRITICAL: Force clear any running countdown interval
+          if (countdownIntervalRef.current) {
+            console.log("### FORCE CLEARING COUNTDOWN INTERVAL ON CLEANUP ###");
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+          }
+          
           if (animationRef.current) {
             cancelAnimationFrame(animationRef.current);
-            animationRef.current = null; // Clear ref
+            animationRef.current = null;
             console.log("Animation Frame Cancelled in webcam cleanup");
           }
+          
           stream?.getTracks().forEach(track => track.stop());
           console.log("Webcam stream stopped.");
+          
           if (videoRef.current) {
-             videoRef.current.srcObject = null; // Release stream from video element
+            videoRef.current.srcObject = null;
           }
-          // Clear any lingering countdown interval
-          if (countdownIntervalRef.current) {
-             clearInterval(countdownIntervalRef.current);
-             countdownIntervalRef.current = null;
-             console.log("Cleared countdown interval in webcam cleanup");
-          }
-          // Reset relevant states on cleanup
+          
+          // Reset all state
           setIsCounting(false);
           setCountdown(3);
           setIsHandDetected(false);
           setDetectedGestureName(null);
           setConfidenceScore(null);
           allCriteriaMet.current = false;
-
         };
       } catch (err) {
         console.error('Error accessing webcam:', err);
-        return () => {}; // Return empty cleanup if setup failed
+        return () => { }; // Return empty cleanup if setup failed
       }
     };
 
     let cleanupWebcam: (() => void) | undefined;
     // Call getWebcam which returns the cleanup function
     getWebcam().then(cleanup => {
-       cleanupWebcam = cleanup;
+      cleanupWebcam = cleanup;
     });
 
     // Return the cleanup function obtained from getWebcam
@@ -338,7 +323,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           </div>
           <div className="flex flex-col gap-1 text-xs text-gray-400">
             {/* ... */}
-             <div className="mt-2 border-t border-gray-600 pt-2">
+            <div className="mt-2 border-t border-gray-600 pt-2">
               <div className="font-bold mb-1">Countdown Conditions:</div>
               <div className={isCounting ? "text-green-400" : "text-red-400"}>
                 ⚡ Is Counting: {isCounting ? "Yes" : "No"} ({countdown})
@@ -347,9 +332,9 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
               <div className={roundActiveRef.current ? "text-green-400" : "text-red-400"}>
                 ⚡ Round Active (ref): {roundActiveRef.current ? "Yes" : "No"}
               </div>
-               {/* Keep the original prop display for comparison if needed */}
+              {/* Keep the original prop display for comparison if needed */}
               <div className={roundActive ? "text-blue-400" : "text-orange-400"}>
-                 (Prop: {roundActive ? "Yes" : "No"})
+                (Prop: {roundActive ? "Yes" : "No"})
               </div>
               <div className={confidenceScore && confidenceScore > 80 ? "text-green-400" : "text-red-400"}>
                 ⚡ Confidence {'>'} 80%: {confidenceScore && confidenceScore > 80 ? "Yes" : "No"} ({confidenceScore?.toFixed(0)}%)
@@ -379,8 +364,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       />
 
       {/* Result overlay */}
-      {/* ... (result overlay remains the same) */}
-       {showGestureResult && resultGesture && (
+      {showGestureResult && resultGesture && (
         <div className="absolute inset-0 bg-horror-dark/80 flex flex-col items-center justify-center z-20">
           <div className="text-2xl font-ocr text-horror-gray mb-2 animate-glitch-1">YOU PLAYED:</div>
           <div className="text-6xl mb-4">{resultGesture}</div>
@@ -391,4 +375,19 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   );
 };
 
-export default WebcamCapture;
+// Use React.memo with a custom comparison function to prevent re-renders 
+// when only certain props change
+export default memo(WebcamCapture, (prevProps, nextProps) => {
+  // We need to re-render when roundActive changes too, since it's critical for gesture detection
+  if (
+    prevProps.showGestureResult !== nextProps.showGestureResult ||
+    prevProps.resultGesture !== nextProps.resultGesture ||
+    prevProps.debugMode !== nextProps.debugMode ||
+    prevProps.onGestureDetected !== nextProps.onGestureDetected ||
+    prevProps.roundActive !== nextProps.roundActive // Allow re-renders when roundActive changes
+  ) {
+    return false; // Props are different - should re-render
+  }
+  
+  return true; // Consider props equal, don't re-render
+});

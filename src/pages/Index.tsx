@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Syringe, Eye, Bug } from 'lucide-react';
 import OpponentHUD from '@/components/OpponentHUD';
 import PlayerHUD from '@/components/PlayerHUD';
@@ -29,6 +29,12 @@ const Index = () => {
     MAX_HEALTH,
   } = useGameState();
   
+  // Memoize the debug mode value to prevent unnecessary re-renders
+  const memoizedDebugMode = React.useMemo(() => debugMode, [debugMode]);
+  
+  // Inside Index component, after other useMemo hooks
+  const memoizedShowGestureResult = React.useMemo(() => showGestureResult, [showGestureResult]);
+  
   useEffect(() => {
     // Check if MediaPipe is supported
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -58,7 +64,8 @@ const Index = () => {
     startRound();
   };
   
-  const handleGestureDetected = (gesture: string) => {
+  // Memoize the gesture detection handler to prevent unnecessary re-renders of WebcamCapture
+  const handleGestureDetected = useCallback((gesture: string) => {
     setShowGestureResult(true);
     
     // Set timeout to show gesture result before showing round result
@@ -67,7 +74,7 @@ const Index = () => {
       setPlayerGesture(gesture);
       setShowRoundResult(true);
     }, 1500);
-  };
+  }, [setPlayerGesture]);
   
   const handleContinueAfterRound = () => {
     setShowRoundResult(false);
@@ -177,8 +184,8 @@ const Index = () => {
         ) : (
           <WebcamCapture
             resultGesture={state.playerGesture}
-            showGestureResult={showGestureResult}
-            debugMode={debugMode}
+            showGestureResult={memoizedShowGestureResult}
+            debugMode={memoizedDebugMode}
             roundActive={state.roundActive}
             onGestureDetected={handleGestureDetected}
           />
