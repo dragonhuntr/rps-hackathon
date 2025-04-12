@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Syringe, Eye } from 'lucide-react';
 import OpponentHUD from '@/components/OpponentHUD';
@@ -17,6 +16,7 @@ const Index = () => {
   const [showRoundResult, setShowRoundResult] = useState(false);
   const [isPeeking, setIsPeeking] = useState(false);
   const [peekedGesture, setPeekedGesture] = useState<string | null>(null);
+  const [mediaLoaded, setMediaLoaded] = useState(false);
   
   const { toast } = useToast();
   const {
@@ -28,6 +28,19 @@ const Index = () => {
     resetGame,
     MAX_HEALTH,
   } = useGameState();
+  
+  useEffect(() => {
+    // Check if MediaPipe is supported
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      setMediaLoaded(true);
+    } else {
+      toast({
+        title: "Camera Error",
+        description: "Your browser doesn't support webcam access needed for gesture recognition",
+        variant: "destructive"
+      });
+    }
+  }, [toast]);
   
   const handleStartGame = () => {
     setGameStarted(true);
@@ -137,32 +150,41 @@ const Index = () => {
       </div>
       
       {/* Middle: Webcam */}
-      <div className="flex-grow relative">
-        <WebcamCapture
-          onGestureDetected={handleGestureDetected}
-          isCountingDown={isCountingDown}
-          detectedGesture={state.playerGesture}
-          showGestureResult={showGestureResult}
-        />
-        
-        {gameStarted && !state.gameOver && !state.roundActive && !showRoundResult && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <button
-              onClick={handleStartRound}
-              className="px-6 py-3 bg-horror-dark/80 border border-horror-red/40 text-horror-red hover:bg-horror-red/20 transition-colors font-mono"
-            >
-              PLAY ROUND_
-            </button>
-          </div>
-        )}
-        
-        {/* Peeking indicator */}
-        {isPeeking && peekedGesture && (
-          <div className="absolute bottom-4 right-4 bg-horror-dark/90 p-2 border border-horror-light/30">
-            <div className="text-xs font-mono text-horror-gray mb-1">NEXT MOVE:</div>
-            <div className="text-2xl">{peekedGesture}</div>
-          </div>
-        )}
+      <div className="flex-1 flex items-center justify-center min-h-0">
+        <div className="aspect-square h-full">
+          {!mediaLoaded ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-horror-dark text-horror-gray">
+              <p className="text-xl font-mono">Loading Camera...</p>
+            </div>
+          ) : (
+            <WebcamCapture
+              onGestureDetected={handleGestureDetected}
+              isCountingDown={isCountingDown}
+              detectedGesture={state.playerGesture}
+              showGestureResult={showGestureResult}
+            />
+          )}
+          
+          {gameStarted && !state.gameOver && !state.roundActive && !showRoundResult && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <button
+                onClick={handleStartRound}
+                className="px-6 py-3 bg-horror-dark/80 border border-horror-red/40 text-horror-red hover:bg-horror-red/20 transition-colors font-mono"
+                disabled={!mediaLoaded}
+              >
+                PLAY ROUND_
+              </button>
+            </div>
+          )}
+          
+          {/* Peeking indicator */}
+          {isPeeking && peekedGesture && (
+            <div className="absolute bottom-4 right-4 bg-horror-dark/90 p-2 border border-horror-light/30">
+              <div className="text-xs font-mono text-horror-gray mb-1">NEXT MOVE:</div>
+              <div className="text-2xl">{peekedGesture}</div>
+            </div>
+          )}
+        </div>
       </div>
       
       {/* Bottom: Player HUD */}

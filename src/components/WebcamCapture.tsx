@@ -1,5 +1,5 @@
-
 import React, { useRef, useState, useEffect } from 'react';
+import { GestureRecognizer, FilesetResolver } from '@mediapipe/tasks-vision';
 
 interface WebcamCaptureProps {
   onGestureDetected: (gesture: string) => void;
@@ -17,31 +17,57 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isHandDetected, setIsHandDetected] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const gestureRecognizerRef = useRef<GestureRecognizer | null>(null);
+  const animationRef = useRef<number | null>(null);
   
-  // Mock hand detection - in a real implementation, this would use MediaPipe
+  // Initialize MediaPipe GestureRecognizer
   useEffect(() => {
-    if (isCountingDown && countdown === null) {
-      setCountdown(3);
+    const initGestureRecognizer = async () => {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+      );
       
-      const interval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev === 1) {
-            clearInterval(interval);
-            
-            // Mock gesture detection - in a real app this would come from MediaPipe
-            const gestures = ['✊', '✋', '✌️'];
-            const randomGesture = gestures[Math.floor(Math.random() * gestures.length)];
-            setTimeout(() => onGestureDetected(randomGesture), 500);
-            
-            return null;
-          }
-          return prev ? prev - 1 : null;
-        });
-      }, 1000);
-      
-      return () => clearInterval(interval);
+      gestureRecognizerRef.current = await GestureRecognizer.createFromOptions(
+        vision,
+        {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+            delegate: "GPU"
+          },
+          runningMode: "VIDEO",
+          numHands: 1
+        }
+      );
+    };
+    
+    initGestureRecognizer();
+    
+    return () => {
+      if (gestureRecognizerRef.current) {
+        gestureRecognizerRef.current.close();
+      }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []);
+  
+  // Process video frames with MediaPipe
+  const processVideoFrame = () => {
+    if (!videoRef.current || !gestureRecognizerRef.current || videoRef.current.paused || videoRef.current.ended) {
+      return;
     }
-  }, [isCountingDown, onGestureDetected, countdown]);
+    
+    const nowInMs = Date.now();
+    const results = gestureRecognizerRef.current.recognizeForVideo(videoRef.current, nowInMs);
+    
+    // Check if hands are detected
+    const handPresent = results.landmarks && results.landmarks.length > 0;
+    setIsHandDetected(handPresent);
+    
+    // Schedule next frame
+    animationRef.current = requestAnimationFrame(processVideoFrame);
+  };
   
   // Start webcam
   useEffect(() => {
@@ -53,15 +79,17 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
         
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play();
+            // Start processing frames
+            animationRef.current = requestAnimationFrame(processVideoFrame);
+          };
         }
         
-        // Mock hand detection - randomly toggle hand detection state
-        const handDetectionInterval = setInterval(() => {
-          setIsHandDetected(Math.random() > 0.3);
-        }, 1000);
-        
         return () => {
-          clearInterval(handDetectionInterval);
+          if (animationRef.current) {
+            cancelAnimationFrame(animationRef.current);
+          }
           stream.getTracks().forEach(track => track.stop());
         };
       } catch (err) {
@@ -71,6 +99,53 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
     
     getWebcam();
   }, []);
+  
+  // Handle countdown and gesture detection
+  useEffect(() => {
+    if (isCountingDown && countdown === null) {
+      setCountdown(3);
+      
+      const interval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev === 1) {
+            clearInterval(interval);
+            
+            // Capture and recognize gesture when countdown completes
+            setTimeout(() => {
+              if (videoRef.current && gestureRecognizerRef.current) {
+                const nowInMs = Date.now();
+                const results = gestureRecognizerRef.current.recognizeForVideo(videoRef.current, nowInMs);
+                
+                if (results.gestures && results.gestures.length > 0) {
+                  const gesture = results.gestures[0][0].categoryName;
+                  // Map MediaPipe gestures to game gestures
+                  let gameGesture = '✊'; // Default to rock
+                  
+                  if (gesture === 'Open_Palm') {
+                    gameGesture = '✋'; // Paper
+                  } else if (gesture === 'Victory' || gesture === 'ILoveYou') {
+                    gameGesture = '✌️'; // Scissors
+                  } else if (gesture === 'Closed_Fist') {
+                    gameGesture = '✊'; // Rock
+                  }
+                  
+                  onGestureDetected(gameGesture);
+                } else {
+                  // Fallback if no gesture detected
+                  onGestureDetected('✊');
+                }
+              }
+            }, 500);
+            
+            return null;
+          }
+          return prev ? prev - 1 : null;
+        });
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isCountingDown, onGestureDetected, countdown]);
   
   return (
     <div className="relative w-full h-full overflow-hidden vignette">
