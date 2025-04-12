@@ -8,6 +8,7 @@ import GameStartScreen from '@/components/GameStartScreen';
 import GameOverScreen from '@/components/GameOverScreen';
 import { useGameState } from '@/hooks/useGameState';
 import { useToast } from "@/components/ui/use-toast";
+import { getRandomGesture } from '@/hooks/useGameState';
 
 const Index = () => {
   const [gameStarted, setGameStarted] = useState(true); // true for dev
@@ -82,9 +83,7 @@ const Index = () => {
       useItem(itemId);
       setIsPeeking(true);
       
-      // Generate "peeked" gesture (in a real app this would be the AI's actual next move)
-      const gestures = ['✊', '✋', '✌️'];
-      const peek = gestures[Math.floor(Math.random() * gestures.length)];
+      const peek = getRandomGesture();
       setPeekedGesture(peek);
       
       toast({

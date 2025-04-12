@@ -11,7 +11,7 @@ export interface GestureResult {
   score: number;
 }
 
-export const VALID_GAME_GESTURES = ['palm', 'stop', 'stop_inverted', 'peace', 'peace_inverted', 'fist', 'fist_inverted'];
+export const VALID_GAME_GESTURES = ['palm', 'stop', 'stop_inverted', 'peace', 'peace_inverted', 'fist'];
 
 export const initGestureRecognizer = async (): Promise<GestureRecognizer> => {
   const vision = await FilesetResolver.forVisionTasks(
@@ -72,6 +72,8 @@ export const mapGestureToGameSymbol = (gesture: string | null): string => {
     case 'stop_inverted':
       return '✋'; // Paper
     case 'peace':
+      return '✌️'; // Scissors
+    case 'peace_inverted':
       return '✌️'; // Scissors
     case 'fist':
       return '✊'; // Rock

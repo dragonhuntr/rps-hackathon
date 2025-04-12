@@ -37,7 +37,7 @@ const determineWinner = (playerGesture: string, computerGesture: string): 'win' 
 };
 
 // Generate a random gesture for the computer
-const getRandomGesture = (): string => {
+export const getRandomGesture = (): string => {
   const gestures = ['✊', '✋', '✌️'];
   return gestures[Math.floor(Math.random() * gestures.length)];
 };
