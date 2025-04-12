@@ -9,15 +9,18 @@ import GameOverScreen from '@/components/GameOverScreen';
 import { useGameState } from '@/hooks/useGameState';
 import { useToast } from "@/components/ui/use-toast";
 import { getRandomGesture } from '@/hooks/useGameState';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
-  const [gameStarted, setGameStarted] = useState(true); // true for dev
+  const [gameStarted, setGameStarted] = useState(false); // true for dev
   const [showGestureResult, setShowGestureResult] = useState(false);
   const [showRoundResult, setShowRoundResult] = useState(false);
   const [isPeeking, setIsPeeking] = useState(false);
   const [peekedGesture, setPeekedGesture] = useState<string | null>(null);
   const [mediaLoaded, setMediaLoaded] = useState(false);
   const [debugMode, setDebugMode] = useState(import.meta.env.VITE_ENV === 'development');
+  const [showStartItems, setShowStartItems] = useState(false);
   
   const { toast } = useToast();
   const {
@@ -53,14 +56,28 @@ const Index = () => {
       description: "Hand detection visualization toggled",
     });
   };
+
+  const handleStartGame = () => {
+    // Show the items dialog before starting the game
+    setShowStartItems(true);
+  };
+  
+  const confirmStart = () => {
+    setShowStartItems(false);
+    setGameStarted(true);
+  };
   
   // Memoize the gesture detection handler to prevent unnecessary re-renders of WebcamCapture
   const handleGestureDetected = useCallback((gesture: string) => {
-    setTimeout(() => {
-      setPlayerGesture(gesture, peekedGesture);
-      setShowRoundResult(true);
-    }, 1000);
-  }, [setPlayerGesture, peekedGesture]);
+    // Only set player gesture and show results if we're in an active round
+    if (state.roundActive) {
+      // We detected a gesture and will show results, make sure any countdown is stopped
+      setTimeout(() => {
+        setPlayerGesture(gesture, peekedGesture);
+        setShowRoundResult(true);
+      }, 1000);
+    }
+  }, [setPlayerGesture, peekedGesture, state.roundActive]);
   
   const handleContinueAfterRound = () => {
     setIsPeeking(false);
@@ -150,6 +167,14 @@ const Index = () => {
     setShowRoundResult(false);
   };
   
+  const handleStartRound = () => {
+    // Reset relevant state before starting a new round
+    setIsPeeking(false);
+    setPeekedGesture(null);
+    setShowRoundResult(false);
+    startRound();
+  };
+  
   // Enhanced items with icons
   const itemsWithIcons = state.items.map(item => ({
     ...item,
@@ -162,8 +187,36 @@ const Index = () => {
     <div className="flex flex-col h-screen bg-horror overflow-hidden">
       {/* Game Start Screen */}
       {!gameStarted && (
-        <GameStartScreen onStart={() => setGameStarted(true)} />
+        <GameStartScreen onStart={handleStartGame} />
       )}
+      
+      {/* Items Dialog */}
+      <Dialog open={showStartItems} onOpenChange={setShowStartItems}>
+        <DialogContent className="bg-horror-dark border-horror-red/40 text-horror-gray">
+          <DialogHeader>
+            <DialogTitle className="text-horror-red font-mono">YOUR STARTING ITEMS</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            {itemsWithIcons.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 p-2 border border-horror-gray/20 rounded">
+                {item.icon}
+                <div>
+                  <p className="font-mono uppercase">{item.type}</p>
+                  <p className="text-xs opacity-70">{item.type === 'cola' ? 'Restore 1 HP' : 'Peek next move'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button 
+              onClick={confirmStart}
+              className="bg-horror-red hover:bg-horror-red/80 text-white font-mono"
+            >
+              START GAME_
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       {/* Game Over Screen */}
       {gameStarted && state.gameOver && state.winner && (
@@ -229,12 +282,7 @@ const Index = () => {
           {gameStarted && !state.gameOver && !state.roundActive && !showRoundResult && (
             <div className="absolute inset-0 flex items-center justify-center">
               <button
-                onClick={() => {
-                  // Reset relevant state before starting a new round
-                  setIsPeeking(false);
-                  setPeekedGesture(null);
-                  startRound();
-                }}
+                onClick={handleStartRound}
                 className="px-6 py-3 bg-horror-dark/80 border border-horror-red/40 text-horror-red hover:bg-horror-red/20 transition-colors font-mono"
                 disabled={!mediaLoaded}
               >

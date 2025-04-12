@@ -45,7 +45,7 @@ const GameStartScreen: React.FC<GameStartScreenProps> = ({ onStart }) => {
       </div>
       
       <div className="absolute bottom-5 text-xs font-mono text-horror-gray/50">
-        (C) 2025 HORROR GESTURE INTERFACE v1.0.3
+        (C) 2025 GROUP 6 v1.0.3
       </div>
     </div>
   );

@@ -151,6 +151,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
       setOneGestureCountdown(3);
     }
     
+    setIsCounting(false);
     // Clear gesture data
     setDetectedGestureName(null);
     setConfidenceScore(null);
