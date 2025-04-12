@@ -6,19 +6,30 @@ interface WebcamCaptureProps {
   isCountingDown: boolean;
   detectedGesture: string | null;
   showGestureResult: boolean;
+  debugMode?: boolean;
+}
+
+interface Landmark {
+  x: number;
+  y: number;
+  z: number;
 }
 
 const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   onGestureDetected,
   isCountingDown,
   detectedGesture,
-  showGestureResult
+  showGestureResult,
+  debugMode = import.meta.env.VITE_ENV === 'development'
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isHandDetected, setIsHandDetected] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const gestureRecognizerRef = useRef<GestureRecognizer | null>(null);
   const animationRef = useRef<number | null>(null);
+  const [detectedGestureName, setDetectedGestureName] = useState<string | null>(null);
+  const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
   
   // Initialize MediaPipe GestureRecognizer
   useEffect(() => {
@@ -52,6 +63,72 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
     };
   }, []);
   
+  // Draw hand landmarks on canvas
+  const drawLandmarks = (landmarks: Landmark[][]) => {
+    if (!canvasRef.current || !videoRef.current || !debugMode) return;
+    
+    const ctx = canvasRef.current.getContext('2d');
+    if (!ctx) return;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    
+    // Set canvas dimensions to match video
+    canvasRef.current.width = videoRef.current.videoWidth;
+    canvasRef.current.height = videoRef.current.videoHeight;
+    
+    // Draw connections between landmarks
+    const drawConnectors = (landmarks: Landmark[]) => {
+      // Define hand connections (simplified for this example)
+      const connections = [
+        [0, 1], [1, 2], [2, 3], [3, 4],  // thumb
+        [0, 5], [5, 6], [6, 7], [7, 8],  // index finger
+        [0, 9], [9, 10], [10, 11], [11, 12],  // middle finger
+        [0, 13], [13, 14], [14, 15], [15, 16],  // ring finger
+        [0, 17], [17, 18], [18, 19], [19, 20],  // pinky
+        [0, 5], [5, 9], [9, 13], [13, 17]  // palm
+      ];
+      
+      ctx.strokeStyle = '#00FF00';
+      ctx.lineWidth = 3;
+      
+      for (const [idx1, idx2] of connections) {
+        const landmark1 = landmarks[idx1];
+        const landmark2 = landmarks[idx2];
+        
+        if (landmark1 && landmark2) {
+          ctx.beginPath();
+          ctx.moveTo(landmark1.x * canvasRef.current!.width, landmark1.y * canvasRef.current!.height);
+          ctx.lineTo(landmark2.x * canvasRef.current!.width, landmark2.y * canvasRef.current!.height);
+          ctx.stroke();
+        }
+      }
+    };
+    
+    // Draw each landmark as a circle
+    const drawLandmarkPoints = (landmarks: Landmark[]) => {
+      ctx.fillStyle = '#FF0000';
+      
+      landmarks.forEach(landmark => {
+        ctx.beginPath();
+        ctx.arc(
+          landmark.x * canvasRef.current!.width,
+          landmark.y * canvasRef.current!.height,
+          5,
+          0,
+          2 * Math.PI
+        );
+        ctx.fill();
+      });
+    };
+    
+    // Draw each hand
+    landmarks.forEach(handLandmarks => {
+      drawConnectors(handLandmarks);
+      drawLandmarkPoints(handLandmarks);
+    });
+  };
+  
   // Process video frames with MediaPipe
   const processVideoFrame = () => {
     if (!videoRef.current || !gestureRecognizerRef.current || videoRef.current.paused || videoRef.current.ended) {
@@ -64,6 +141,30 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
     // Check if hands are detected
     const handPresent = results.landmarks && results.landmarks.length > 0;
     setIsHandDetected(handPresent);
+    
+    // Draw landmarks if hands are detected
+    if (handPresent && results.landmarks) {
+      // Update detected gesture and confidence
+      if (results.gestures && results.gestures.length > 0) {
+        const gesture = results.gestures[0][0].categoryName;
+        const score = Math.round(results.gestures[0][0].score * 100);
+        setDetectedGestureName(gesture);
+        setConfidenceScore(score);
+      } else {
+        setDetectedGestureName(null);
+        setConfidenceScore(null);
+      }
+      
+      drawLandmarks(results.landmarks);
+    } else {
+      // Clear canvas when no hands detected
+      if (canvasRef.current && debugMode) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+      setDetectedGestureName(null);
+      setConfidenceScore(null);
+    }
     
     // Schedule next frame
     animationRef.current = requestAnimationFrame(processVideoFrame);
@@ -81,6 +182,13 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
             videoRef.current?.play();
+            
+            // Initialize canvas size after video is loaded
+            if (canvasRef.current && videoRef.current) {
+              canvasRef.current.width = videoRef.current.videoWidth;
+              canvasRef.current.height = videoRef.current.videoHeight;
+            }
+            
             // Start processing frames
             animationRef.current = requestAnimationFrame(processVideoFrame);
           };
@@ -118,6 +226,13 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
                 
                 if (results.gestures && results.gestures.length > 0) {
                   const gesture = results.gestures[0][0].categoryName;
+                  const score = results.gestures[0][0].score;
+                  
+                  // Log detailed information in development
+                  if (import.meta.env.VITE_ENV === 'development') {
+                    console.log(`Detected gesture: ${gesture} (confidence: ${score.toFixed(2)})`);
+                  }
+                  
                   // Map MediaPipe gestures to game gestures
                   let gameGesture = '✊'; // Default to rock
                   
@@ -147,6 +262,21 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
     }
   }, [isCountingDown, onGestureDetected, countdown]);
   
+  // Get corresponding game gesture emoji for display
+  const getGameGestureEmoji = (mediapigeGesture: string | null): string => {
+    if (!mediapigeGesture) return '';
+    
+    if (mediapigeGesture === 'Open_Palm') {
+      return '✋';
+    } else if (mediapigeGesture === 'Victory' || mediapigeGesture === 'ILoveYou') {
+      return '✌️';
+    } else if (mediapigeGesture === 'Closed_Fist') {
+      return '✊';
+    }
+    
+    return '';
+  };
+  
   return (
     <div className="relative w-full h-full overflow-hidden vignette">
       <video 
@@ -157,8 +287,37 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
         className="w-full h-full object-cover"
       />
       
+      <canvas
+        ref={canvasRef}
+        className="absolute top-0 left-0 w-full h-full object-cover pointer-events-none"
+      />
+      
+      {/* Debug visualization panel */}
+      {debugMode && isHandDetected && detectedGestureName && (
+        <div className="absolute top-4 left-4 bg-black/80 rounded-md p-3 text-white font-mono text-sm border border-green-500/50">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-3xl">{getGameGestureEmoji(detectedGestureName)}</div>
+            <div>
+              <div className="font-bold text-green-400">{detectedGestureName}</div>
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-24 bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500 rounded-full" 
+                    style={{ width: `${confidenceScore || 0}%` }}
+                  />
+                </div>
+                <span className="text-xs">{confidenceScore}%</span>
+              </div>
+            </div>
+          </div>
+          <div className="text-xs text-gray-400">
+            MediaPipe Hand Tracking Active
+          </div>
+        </div>
+      )}
+      
       {/* Hand detection indicator */}
-      {isHandDetected && !isCountingDown && !showGestureResult && (
+      {isHandDetected && !isCountingDown && !showGestureResult && !debugMode && (
         <div className="absolute inset-0 border-2 border-green-500/30 pointer-events-none" />
       )}
       

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Syringe, Eye } from 'lucide-react';
+import { Syringe, Eye, Bug } from 'lucide-react';
 import OpponentHUD from '@/components/OpponentHUD';
 import PlayerHUD from '@/components/PlayerHUD';
 import WebcamCapture from '@/components/WebcamCapture';
@@ -17,6 +17,7 @@ const Index = () => {
   const [isPeeking, setIsPeeking] = useState(false);
   const [peekedGesture, setPeekedGesture] = useState<string | null>(null);
   const [mediaLoaded, setMediaLoaded] = useState(false);
+  const [debugMode, setDebugMode] = useState(import.meta.env.VITE_ENV === 'development');
   
   const { toast } = useToast();
   const {
@@ -41,6 +42,14 @@ const Index = () => {
       });
     }
   }, [toast]);
+  
+  const toggleDebugMode = () => {
+    setDebugMode(prev => !prev);
+    toast({
+      title: `Debug Mode: ${!debugMode ? 'Enabled' : 'Disabled'}`,
+      description: "Hand detection visualization toggled",
+    });
+  };
   
   const handleStartGame = () => {
     setGameStarted(true);
@@ -139,6 +148,19 @@ const Index = () => {
         />
       )}
       
+      {/* Development mode indicator and debug toggle */}
+      {import.meta.env.VITE_ENV === 'development' && (
+        <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+          <button 
+            onClick={toggleDebugMode}
+            className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-mono bg-black/70 ${debugMode ? 'text-green-400' : 'text-white'}`}
+          >
+            <Bug size={14} />
+            {debugMode ? 'Debug ON' : 'Debug OFF'}
+          </button>
+        </div>
+      )}
+      
       {/* Top: Opponent HUD */}
       <div className="w-full sticky top-0 z-10">
         <OpponentHUD 
@@ -150,41 +172,40 @@ const Index = () => {
       </div>
       
       {/* Middle: Webcam */}
-      <div className="flex-1 flex items-center justify-center min-h-0">
-        <div className="aspect-square h-full">
-          {!mediaLoaded ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-horror-dark text-horror-gray">
-              <p className="text-xl font-mono">Loading Camera...</p>
-            </div>
-          ) : (
-            <WebcamCapture
-              onGestureDetected={handleGestureDetected}
-              isCountingDown={isCountingDown}
-              detectedGesture={state.playerGesture}
-              showGestureResult={showGestureResult}
-            />
-          )}
-          
-          {gameStarted && !state.gameOver && !state.roundActive && !showRoundResult && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <button
-                onClick={handleStartRound}
-                className="px-6 py-3 bg-horror-dark/80 border border-horror-red/40 text-horror-red hover:bg-horror-red/20 transition-colors font-mono"
-                disabled={!mediaLoaded}
-              >
-                PLAY ROUND_
-              </button>
-            </div>
-          )}
-          
-          {/* Peeking indicator */}
-          {isPeeking && peekedGesture && (
-            <div className="absolute bottom-4 right-4 bg-horror-dark/90 p-2 border border-horror-light/30">
-              <div className="text-xs font-mono text-horror-gray mb-1">NEXT MOVE:</div>
-              <div className="text-2xl">{peekedGesture}</div>
-            </div>
-          )}
-        </div>
+      <div className="flex-grow relative">
+        {!mediaLoaded ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-horror-dark text-horror-gray">
+            <p className="text-xl font-mono">Loading Camera...</p>
+          </div>
+        ) : (
+          <WebcamCapture
+            onGestureDetected={handleGestureDetected}
+            isCountingDown={isCountingDown}
+            detectedGesture={state.playerGesture}
+            showGestureResult={showGestureResult}
+            debugMode={debugMode}
+          />
+        )}
+        
+        {gameStarted && !state.gameOver && !state.roundActive && !showRoundResult && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <button
+              onClick={handleStartRound}
+              className="px-6 py-3 bg-horror-dark/80 border border-horror-red/40 text-horror-red hover:bg-horror-red/20 transition-colors font-mono"
+              disabled={!mediaLoaded}
+            >
+              PLAY ROUND_
+            </button>
+          </div>
+        )}
+        
+        {/* Peeking indicator */}
+        {isPeeking && peekedGesture && (
+          <div className="absolute bottom-4 right-4 bg-horror-dark/90 p-2 border border-horror-light/30">
+            <div className="text-xs font-mono text-horror-gray mb-1">NEXT MOVE:</div>
+            <div className="text-2xl">{peekedGesture}</div>
+          </div>
+        )}
       </div>
       
       {/* Bottom: Player HUD */}
