@@ -96,16 +96,31 @@ const Index = () => {
   
   // Callback for when the three gesture is detected
   const handleThreeGestureDetected = useCallback(() => {
-    // Generate the peek and set it
-    const peek = getRandomGesture();
-    setPeekedGesture(peek);
-    setIsPeeking(true);
+    // Find if player has a peek item
+    const peekItem = state.items.find(item => item.type === 'peek');
     
-    toast({
-      title: "Three Gesture Detected!",
-      description: "Peek activated - you can see the opponent's next move.",
-    });
-  }, [toast]);
+    if (peekItem) {
+      // Use the item (this will remove it from inventory)
+      useItem(peekItem.id);
+      
+      // Generate the peek and set it
+      const peek = getRandomGesture();
+      setPeekedGesture(peek);
+      setIsPeeking(true);
+      
+      toast({
+        title: "Three Gesture Detected!",
+        description: "Peek activated - you can see the opponent's next move.",
+      });
+    } else {
+      // No peek item available
+      toast({
+        title: "Three Gesture Detected",
+        description: "You need a peek item to use this gesture.",
+        variant: "destructive"
+      });
+    }
+  }, [toast, state.items, useItem]);
   
   const handleRestart = () => {
     resetGame();
@@ -190,7 +205,12 @@ const Index = () => {
           {gameStarted && !state.gameOver && !state.roundActive && !showRoundResult && (
             <div className="absolute inset-0 flex items-center justify-center">
               <button
-                onClick={() => startRound()}
+                onClick={() => {
+                  // Reset relevant state before starting a new round
+                  setIsPeeking(false);
+                  setPeekedGesture(null);
+                  startRound();
+                }}
                 className="px-6 py-3 bg-horror-dark/80 border border-horror-red/40 text-horror-red hover:bg-horror-red/20 transition-colors font-mono"
                 disabled={!mediaLoaded}
               >

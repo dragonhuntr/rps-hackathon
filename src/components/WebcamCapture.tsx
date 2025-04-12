@@ -104,6 +104,28 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
   // but use useCallback to memoize it if needed (though often not necessary with requestAnimationFrame loops)
   // For simplicity here, we'll keep it inside, but be mindful of dependencies if extracting.
 
+  // Ensure proper cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear any active intervals to avoid memory leaks
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      
+      if (threeGestureIntervalRef.current) {
+        clearInterval(threeGestureIntervalRef.current);
+        threeGestureIntervalRef.current = null;
+      }
+      
+      // Reset states
+      setIsCounting(false);
+      setIsThreeGestureCounting(false);
+      setCountdown(3);
+      setThreeGestureCountdown(3);
+    };
+  }, []);
+
   // Start webcam and frame processing
   useEffect(() => {
     // Only run when the recognizer is ready
@@ -130,26 +152,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
         
         // SIMPLE APPROACH: If no hand is detected, stop the countdown immediately
         if (!handDetected) {
-          // Just cancel any existing countdown
-          if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current);
-            countdownIntervalRef.current = null;
-            setIsCounting(false);
-            setCountdown(3);
-          }
-          
-          // Cancel any three gesture countdown if active
-          if (threeGestureIntervalRef.current) {
-            clearInterval(threeGestureIntervalRef.current);
-            threeGestureIntervalRef.current = null;
-            setIsThreeGestureCounting(false);
-            setThreeGestureCountdown(3);
-          }
-          
-          // Clear gesture data
-          setDetectedGestureName(null);
-          setConfidenceScore(null);
-          allCriteriaMet.current = false;
+          resetCountdowns();
           
           // Clear canvas of any previous hand landmarks
           if (canvasRef.current && debugMode) {
@@ -185,7 +188,10 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
                     clearInterval(threeGestureIntervalRef.current);
                     threeGestureIntervalRef.current = null;
                   }
+                  
+                  // Important: Reset state properly to ensure gesture detection can continue
                   setIsThreeGestureCounting(false);
+                  setThreeGestureCountdown(3);
                   
                   // Invoke the callback for three gesture detection
                   if (onThreeGestureDetected) {
@@ -332,14 +338,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           }
           
           // Reset all state
-          setIsCounting(false);
-          setCountdown(3);
-          setIsHandDetected(false);
-          setDetectedGestureName(null);
-          setConfidenceScore(null);
-          allCriteriaMet.current = false;
-          setIsThreeGestureCounting(false);
-          setThreeGestureCountdown(3);
+          resetCountdowns();
         };
       } catch (err) {
         console.error('Error accessing webcam:', err);
@@ -359,6 +358,30 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
     };
 
   }, [isGestureRecognizerReady, onGestureDetected, onThreeGestureDetected, debugMode]);
+
+  // Function to reset all countdown states - can be called from anywhere in component
+  const resetCountdowns = () => {
+    // Just cancel any existing countdown
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+      setIsCounting(false);
+      setCountdown(3);
+    }
+    
+    // Cancel any three gesture countdown if active
+    if (threeGestureIntervalRef.current) {
+      clearInterval(threeGestureIntervalRef.current);
+      threeGestureIntervalRef.current = null;
+      setIsThreeGestureCounting(false);
+      setThreeGestureCountdown(3);
+    }
+    
+    // Clear gesture data
+    setDetectedGestureName(null);
+    setConfidenceScore(null);
+    allCriteriaMet.current = false;
+  };
 
   return (
     <div className="relative w-full h-full overflow-hidden vignette">
