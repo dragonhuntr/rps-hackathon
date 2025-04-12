@@ -24,6 +24,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@models": path.resolve(__dirname, "./public/models"),
     },
   },
+  assetsInclude: ['**/*.task'],
 }));

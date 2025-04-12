@@ -11,7 +11,7 @@ export interface GestureResult {
   score: number;
 }
 
-export const VALID_GAME_GESTURES = ['Open_Palm', 'Victory', 'Closed_Fist'];
+export const VALID_GAME_GESTURES = ['palm', 'stop', 'stop_inverted', 'peace', 'peace_inverted', 'fist', 'fist_inverted'];
 
 export const initGestureRecognizer = async (): Promise<GestureRecognizer> => {
   const vision = await FilesetResolver.forVisionTasks(
@@ -20,7 +20,7 @@ export const initGestureRecognizer = async (): Promise<GestureRecognizer> => {
   
   return await GestureRecognizer.createFromOptions(vision, {
     baseOptions: {
-      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+      modelAssetPath: "/models/gesture_recognizer.task",
       delegate: "GPU"
     },
     runningMode: "VIDEO",
@@ -65,11 +65,15 @@ export const mapGestureToGameSymbol = (gesture: string | null): string => {
   if (!gesture || !VALID_GAME_GESTURES.includes(gesture)) return null; // Check if valid game gesture
   
   switch (gesture) {
-    case 'Open_Palm':
+    case 'palm':
       return '✋'; // Paper
-    case 'Victory':
+    case 'stop':
+      return '✋'; // Paper
+    case 'stop_inverted':
+      return '✋'; // Paper
+    case 'peace':
       return '✌️'; // Scissors
-    case 'Closed_Fist':
+    case 'fist':
       return '✊'; // Rock
     default:
       return null;

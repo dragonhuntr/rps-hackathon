@@ -22,7 +22,7 @@ const GameStartScreen: React.FC<GameStartScreenProps> = ({ onStart }) => {
   
   return (
     <div className="fixed inset-0 z-50 bg-horror flex flex-col items-center justify-center crt-overlay scan-line">
-      <div className={`text-center`}>
+      <div className="text-center">
         {showTitle && (
           <>
             <div className="mb-2 text-xs font-mono text-horror-gray/70">INITIALIZING SYSTEM</div>

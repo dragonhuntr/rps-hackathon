@@ -152,7 +152,7 @@ const WebcamCapture: React.FC<WebcamCaptureProps> = ({
           
           // Simple criteria check
           allCriteriaMet.current = 
-            (result.confidenceScore || 0) > 70 && 
+            (result.confidenceScore || 0) > 80 && 
             result.detectedGesture !== null && 
             VALID_GAME_GESTURES.includes(result.detectedGesture || '') && 
             roundActiveRef.current;
