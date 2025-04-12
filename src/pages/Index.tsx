@@ -56,9 +56,10 @@ const Index = () => {
   
   // Memoize the gesture detection handler to prevent unnecessary re-renders of WebcamCapture
   const handleGestureDetected = useCallback((gesture: string) => {
-    console.log(peekedGesture);
-    setPlayerGesture(gesture, peekedGesture);
-    setShowRoundResult(true);
+    setTimeout(() => {
+      setPlayerGesture(gesture, peekedGesture);
+      setShowRoundResult(true);
+    }, 1000);
   }, [setPlayerGesture, peekedGesture]);
   
   const handleContinueAfterRound = () => {
@@ -92,6 +93,19 @@ const Index = () => {
       });
     }
   };
+  
+  // Callback for when the three gesture is detected
+  const handleThreeGestureDetected = useCallback(() => {
+    // Generate the peek and set it
+    const peek = getRandomGesture();
+    setPeekedGesture(peek);
+    setIsPeeking(true);
+    
+    toast({
+      title: "Three Gesture Detected!",
+      description: "Peek activated - you can see the opponent's next move.",
+    });
+  }, [toast]);
   
   const handleRestart = () => {
     resetGame();
@@ -169,6 +183,7 @@ const Index = () => {
               roundActive={state.roundActive}
               peekedGesture={peekedGesture}
               onGestureDetected={handleGestureDetected}
+              onThreeGestureDetected={handleThreeGestureDetected}
             />
           )}
           

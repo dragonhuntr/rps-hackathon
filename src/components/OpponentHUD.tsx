@@ -40,7 +40,7 @@ const OpponentHUD: React.FC<OpponentHUDProps> = ({
       
       <div className="flex justify-center items-center mt-2">
         <div className="w-60 h-60 border border-horror-light bg-black/30 flex items-center justify-center">
-          <div className={`text-3xl`}>
+          <div className={`text-8xl`}>
             {showMove ? currentMove : '🤖'}
           </div>
         </div>
